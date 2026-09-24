@@ -240,6 +240,13 @@ flutter build apk --release
 
 ## 更新日志
 
+**v1.3.2（versionCode 7）**
+- 本版本为 Java 架构版（[gitee.com/dubwhr/start-android](https://gitee.com/dubwhr/start-android)，仅作归档）全面重构后的 Flutter 持续迭代
+- 修复专注滴答声不响（原生 ToneGenerator 音频资源泄漏，每次创建未释放）
+- 修复专注结束提示音崩溃（MediaPlayer 空指针 + stopChime 在非 playing 状态调 stop 抛异常）
+- 修复专注自定义时长输入框不显示（对话框 content 参数类型错误，TextField 未渲染）
+- 移除专注页右上角无功能秒表装饰图标
+
 **v1.3.1（versionCode 6）**
 - 底栏中央功能键「开始」正式更名为「**动手吧**」（回归锤子「一步 = 动手吧」映射），页头、说明书、映射表同步
 - 分行拆分全局化：随手做 / 念头 / 捋一捋的加号弹层升级为多行速记，回车换行与句末标点（。！？；…）自动拆成多条**直接存入对应分区**（不再一次只能记一件）
