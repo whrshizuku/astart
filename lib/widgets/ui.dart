@@ -250,16 +250,19 @@ Future<T?> showStartSheet<T>(BuildContext context, WidgetBuilder builder) {
 }
 
 /// 统一对话框。
-Future<T?> showStartDialog<T>(BuildContext context, {required String title, Widget? content, List<Widget>? actions}) {
+/// 按钮必须用 actions 回调给出的 dctx（弹框自身 context）来 pop：
+/// 页面在 body 内嵌导航器内、弹框默认挂根导航器，用页面 context 会误关页面、弹框卡住。
+Future<T?> showStartDialog<T>(BuildContext context,
+    {required String title, Widget? content, required List<Widget> Function(BuildContext dctx) actions}) {
   final c = ThemeTokens.of(context);
   return showDialog<T>(
     context: context,
-    builder: (_) => AlertDialog(
+    builder: (dctx) => AlertDialog(
       backgroundColor: c.card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
       title: Text(title, style: TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
       content: content,
-      actions: actions,
+      actions: actions(dctx),
     ),
   );
 }

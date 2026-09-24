@@ -151,7 +151,8 @@ class StartStore extends ChangeNotifier {
     final existing = it.id > 0 ? byId(it.id) : null;
     if (existing == null) {
       it.id = seq++;
-      it.created = now;
+      // 批量新建（拆词/多行）会显式传 created=now+k 保证子步骤顺序，不能覆盖。
+      if (it.created == 0) it.created = now;
       if (touchRank) it.rank = _minRank() - 1;
       items.add(it);
     } else if (!identical(existing, it)) {

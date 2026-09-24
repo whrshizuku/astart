@@ -44,7 +44,7 @@ class _BigBangSheetState extends State<BigBangSheet> {
     final ctl = TextEditingController(text: _words[i]);
     final v = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
         title: Text('改这个词',
@@ -56,9 +56,11 @@ class _BigBangSheetState extends State<BigBangSheet> {
           cursorColor: c.accent,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('算了', style: TextStyle(color: c.inkSoft))),
+          // 必须用弹框自身的 dctx：浮层挂在 body 内嵌导航器、弹框挂在根导航器，
+          // 用浮层 context 会误关拆词浮层、弹框反而卡住没反应。
+          TextButton(onPressed: () => Navigator.pop(dctx), child: Text('算了', style: TextStyle(color: c.inkSoft))),
           TextButton(
-            onPressed: () => Navigator.pop(context, ctl.text.trim()),
+            onPressed: () => Navigator.pop(dctx, ctl.text.trim()),
             child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -82,7 +84,7 @@ class _BigBangSheetState extends State<BigBangSheet> {
     final ctl = TextEditingController();
     final v = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
         title: Text('加一步',
@@ -95,9 +97,9 @@ class _BigBangSheetState extends State<BigBangSheet> {
           decoration: InputDecoration(hintText: '写清楚这一步做什么', hintStyle: TextStyle(color: c.inkSoft)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('算了', style: TextStyle(color: c.inkSoft))),
+          TextButton(onPressed: () => Navigator.pop(dctx), child: Text('算了', style: TextStyle(color: c.inkSoft))),
           TextButton(
-            onPressed: () => Navigator.pop(context, ctl.text.trim()),
+            onPressed: () => Navigator.pop(dctx, ctl.text.trim()),
             child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -127,7 +129,7 @@ class _BigBangSheetState extends State<BigBangSheet> {
           ),
           const SizedBox(height: S.xs),
           Center(
-            child: Text('点一下取消选中，双击删掉，长按改词，＋手动加',
+            child: Text('点一下取消选中，双击删掉，长按改词，下面可手动补一步',
                 style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
           ),
           const SizedBox(height: S.md),
@@ -138,8 +140,8 @@ class _BigBangSheetState extends State<BigBangSheet> {
             )
           else if (_words.isEmpty)
             Padding(
-              padding: const EdgeInsets.all(S.lg),
-              child: Center(child: Text('没拆出词', style: TextStyle(color: c.inkSoft))),
+              padding: const EdgeInsets.symmetric(vertical: S.lg),
+              child: Center(child: Text('没拆出词，直接在下面手动加', style: TextStyle(color: c.inkSoft))),
             )
           else
             Flexible(
@@ -152,14 +154,31 @@ class _BigBangSheetState extends State<BigBangSheet> {
                   }),
                   onDoubleTap: (i) => setState(() {
                     _words.removeAt(i);
-                    _picked = _picked.where((e) => e < i || e > i).toSet();
+                    // 删除 i 后，其后的下标整体前移一位，选中集同步迁移。
+                    _picked = _picked
+                        .where((e) => e != i)
+                        .map((e) => e > i ? e - 1 : e)
+                        .toSet();
                   }),
                   onLongPress: _editWord,
+                  onReorder: (from, to) => setState(() {
+                    final w = _words.removeAt(from);
+                    _words.insert(to.clamp(0, _words.length), w);
+                    final np = <int>{};
+                    for (final p in _picked) {
+                      np.add(p == from
+                          ? to
+                          : (p >= to && p < from ? p + 1 : (p <= to && p > from ? p - 1 : p)));
+                    }
+                    _picked
+                      ..clear()
+                      ..addAll(np);
+                  }),
                 ),
               ),
             ),
           const SizedBox(height: S.md),
-          if (!_loading && _words.isNotEmpty)
+          if (!_loading)
             Pressable(
               onTap: _addWord,
               child: Container(
@@ -170,7 +189,7 @@ class _BigBangSheetState extends State<BigBangSheet> {
                   borderRadius: BorderRadius.circular(S.radius),
                   border: Border.all(color: c.line),
                 ),
-                child: Text('＋ 手动加一步',
+                child: Text('手动加一步',
                     style: TextStyle(color: c.inkSoft, fontSize: S.textMd, fontWeight: FontWeight.bold)),
               ),
             ),
@@ -184,6 +203,8 @@ class _BigBangSheetState extends State<BigBangSheet> {
                   kept.add(_words[i]);
                 }
                 widget.onDone(kept);
+                // 回调存完即关浮层，避免再点一次重复入库。
+                Navigator.of(context).pop();
               },
               child: Container(
                 height: 48,
@@ -207,6 +228,7 @@ class _ChipWrap extends StatelessWidget {
   final void Function(int) onTap;
   final void Function(int) onDoubleTap;
   final void Function(int) onLongPress;
+  final void Function(int from, int to) onReorder;
 
   const _ChipWrap({
     required this.words,
@@ -214,6 +236,7 @@ class _ChipWrap extends StatelessWidget {
     required this.onTap,
     required this.onDoubleTap,
     required this.onLongPress,
+    required this.onReorder,
   });
 
   @override
@@ -226,19 +249,7 @@ class _ChipWrap extends StatelessWidget {
         for (var i = 0; i < words.length; i++)
           DragTarget<int>(
             onWillAcceptWithDetails: (d) => d.data != i,
-            onAcceptWithDetails: (d) {
-              final from = d.data;
-              final w = words.removeAt(from);
-              words.insert(i.clamp(0, words.length), w);
-              // 重排选择集
-              final np = <int>{};
-              for (final p in picked) {
-                np.add(p == from ? i : (p >= i && p < from ? p + 1 : (p <= i && p > from ? p - 1 : p)));
-              }
-              picked
-                ..clear()
-                ..addAll(np);
-            },
+            onAcceptWithDetails: (d) => onReorder(d.data, i),
             builder: (_, __, ___) => Draggable<int>(
               data: i,
               feedback: _chip(context, c, i, lifted: true),

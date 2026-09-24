@@ -4,7 +4,8 @@ import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
 
-/// 统计：今日专注、连续天数、完成数、累计、近 7 天柱状图。
+/// 统计：极简纯文字。今日专注、专注日、完成数、累计，加近 7 天柱状图。
+/// 无卡片底，数字等宽对齐，一眼看清进展。
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
 
@@ -21,63 +22,56 @@ class StatsScreen extends StatelessWidget {
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(S.md),
+        padding: const EdgeInsets.fromLTRB(S.lg, S.xl, S.lg, S.xl + 16),
         children: [
           Text('统计',
-              style: TextStyle(fontSize: S.textXl, fontWeight: FontWeight.bold, color: c.ink)),
-          const SizedBox(height: S.md),
+              style: TextStyle(
+                  fontSize: S.textSm, color: c.inkSoft, fontWeight: FontWeight.bold)),
+          const SizedBox(height: S.lg),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: _StatCard(c, big: '${s.todayFocusMinutes()}', label: '今日专注分钟'),
-              ),
-              const SizedBox(width: S.xs),
+                  child: _Stat(c, big: '${s.todayFocusMinutes()}', label: '今日专注分钟')),
               Expanded(
-                child: _StatCard(c, big: '${s.activeDaysLast7()}', label: '近 7 天专注日'),
-              ),
+                  child: _Stat(c, big: '${s.activeDaysLast7()}', label: '近 7 天专注日')),
             ],
+          ),
+          const SizedBox(height: S.lg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                  child: _Stat(c, big: '${s.completedTasksCount()}', label: '完成的事')),
+              Expanded(
+                  child: _Stat(c, big: '${s.totalFocusMinutes()}', label: '累计专注分钟')),
+            ],
+          ),
+          const SizedBox(height: S.xl),
+          Text('近 7 天',
+              style: TextStyle(
+                  fontSize: S.textSm, color: c.inkSoft, fontWeight: FontWeight.bold)),
+          const SizedBox(height: S.md),
+          SizedBox(
+            height: 120,
+            child: CustomPaint(
+              size: const Size(double.infinity, 120),
+              painter: _BarsPainter(
+                  data: last7, accent: c.accent, soft: c.cardAlt, ink: c.inkSoft),
+              child: const SizedBox.expand(),
+            ),
           ),
           const SizedBox(height: S.xs),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: _StatCard(c, big: '${s.completedTasksCount()}', label: '完成的事'),
-              ),
-              const SizedBox(width: S.xs),
-              Expanded(
-                child: _StatCard(c, big: '${s.totalFocusMinutes()}', label: '累计专注分钟'),
-              ),
-            ],
-          ),
-          const SizedBox(height: S.md),
-          StartCard(
-            padding: const EdgeInsets.all(S.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('近 7 天',
+              for (var i = 0; i < 7; i++)
+                Text('${i == 6 ? '今天' : '-${6 - i}'}',
                     style: TextStyle(
-                        fontSize: S.textSm, color: c.inkSoft, fontWeight: FontWeight.bold)),
-                const SizedBox(height: S.md),
-                SizedBox(
-                  height: 120,
-                  child: CustomPaint(
-                    size: const Size(double.infinity, 120),
-                    painter: _BarsPainter(data: last7, accent: c.accent, soft: c.cardAlt, ink: c.inkSoft),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-                const SizedBox(height: S.xs),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    for (var i = 0; i < 7; i++)
-                      Text('${i == 6 ? '今天' : '-${6 - i}'}',
-                          style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
-                  ],
-                ),
-              ],
-            ),
+                        fontSize: S.textSm,
+                        color: c.inkSoft,
+                        fontFeatures: const [FontFeature.tabularFigures()])),
+            ],
           ),
         ],
       ),
@@ -85,28 +79,27 @@ class StatsScreen extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
+/// 单项数字：大号等宽数字 + 小字标签，无底色。
+class _Stat extends StatelessWidget {
   final C c;
   final String big;
   final String label;
-  const _StatCard(this.c, {required this.big, required this.label});
+  const _Stat(this.c, {required this.big, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return StartCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(big,
-              style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: c.ink,
-                  fontFeatures: const [FontFeature.tabularFigures()])),
-          const SizedBox(height: S.xxs),
-          Text(label, style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(big,
+            style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: c.ink,
+                fontFeatures: const [FontFeature.tabularFigures()])),
+        const SizedBox(height: S.xxs),
+        Text(label, style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+      ],
     );
   }
 }

@@ -2,11 +2,13 @@ import 'dart:math' show pi;
 
 import 'package:flutter/material.dart';
 
+import '../channels/native.dart';
+import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
 
-/// 开机动画页：图标淡入上浮 + 番茄红圆环描边转满 + 底部小字。
-/// 约 1.4 秒后回调进入主界面（协议门 / 首页）。纯图标，无按钮无干扰。
+/// 开机动画页：图标淡入上浮 + 番茄红圆环描边转满 + 底部小字，末尾安静停顿。
+/// 默认 2.6 秒后回调进入主界面（协议门 / 首页）。纯图标，无按钮无干扰。
 class SplashScreen extends StatefulWidget {
   final VoidCallback onDone;
   const SplashScreen({super.key, required this.onDone});
@@ -17,18 +19,23 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
+  late final int _ms;
   late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
+    _ms = StartStore.I.prefInt('dev_splash_ms', 2600).clamp(1400, 6000);
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: Duration(milliseconds: _ms),
     )..forward();
     _ctrl.addStatusListener((s) {
       if (s == AnimationStatus.completed) widget.onDone();
     });
+    // 圆环开始描边后轻轻响起开机铃声（开关在设置/开发者选项里）。
+    Future.delayed(Duration(milliseconds: (_ms * 0.22).round()),
+        Native.bootSound);
   }
 
   @override
@@ -40,13 +47,13 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
-    // 0.0–0.55：圆环描边转满；0.25–1.0：图标淡入上浮；0.6–1.0：小字淡入。
+    // 0–0.42：圆环描边转满；0.15–0.55：图标淡入上浮；0.5–0.78：小字淡入；末尾停顿。
     final ring = CurvedAnimation(
-        parent: _ctrl, curve: const Interval(0, 0.55, curve: Curves.easeOut));
+        parent: _ctrl, curve: const Interval(0, 0.42, curve: Curves.easeOut));
     final logo = CurvedAnimation(
-        parent: _ctrl, curve: const Interval(0.25, 1, curve: Curves.easeOut));
+        parent: _ctrl, curve: const Interval(0.15, 0.55, curve: Curves.easeOut));
     final word = CurvedAnimation(
-        parent: _ctrl, curve: const Interval(0.6, 1, curve: Curves.easeIn));
+        parent: _ctrl, curve: const Interval(0.5, 0.78, curve: Curves.easeIn));
 
     return Scaffold(
       backgroundColor: c.paper,

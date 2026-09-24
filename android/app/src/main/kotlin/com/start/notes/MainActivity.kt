@@ -9,11 +9,10 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Handler
-import android.os.Looper
-import android.media.AudioManager
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.MediaPlayer
-import android.media.ToneGenerator
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
@@ -42,6 +41,7 @@ import java.util.Locale
 class MainActivity : FlutterActivity() {
 
     private var chime: MediaPlayer? = null
+    private var boot: MediaPlayer? = null
     private var voice: VoiceChannel? = null
     private var pendingResult: MethodChannel.Result? = null
     private var pendingExportJson: String? = null
@@ -84,23 +84,37 @@ class MainActivity : FlutterActivity() {
         MethodChannel(m, "start/sound").setMethodCallHandler { call, result ->
             when (call.method) {
                 "tick" -> {
-                    val vol = ((call.argument<Int>("volume") ?: 70).coerceIn(0, 100) * 8).coerceAtMost(100)
-                    val tg = ToneGenerator(AudioManager.STREAM_SYSTEM, vol)
-                    tg.startTone(ToneGenerator.TONE_PROP_BEEP, 60)
-                    Handler(Looper.getMainLooper()).postDelayed({ tg.release() }, 200)
+                    playTick((call.argument<Int>("volume") ?: 70).coerceIn(0, 100))
                     result.success(null)
                 }
                 "chime" -> {
                     stopChime()
                     try {
                         chime = MediaPlayer.create(this, R.raw.finish_chime)?.apply {
-                            setOnCompletionListener { it.release() }
+                            setOnCompletionListener { mp ->
+                                try { mp.release() } catch (_: Exception) {}
+                                chime = null
+                            }
                             start()
                         }
                     } catch (_: Exception) {}
                     result.success(null)
                 }
                 "stopChime" -> { stopChime(); result.success(null) }
+                "playBoot" -> {
+                    val sp = getSharedPreferences("start_prefs", MODE_PRIVATE)
+                    if (sp.getBoolean("boot_sound_on", false)) {
+                        val vol = (sp.getInt("sound_volume", 70) / 100f)
+                        playBoot(java.io.File(filesDir, "boot_sound.mp3"), vol)
+                    }
+                    result.success(null)
+                }
+                "previewBoot" -> {
+                    val vol = ((call.argument<Int>("volume") ?: 70).coerceIn(0, 100)) / 100f
+                    playBoot(java.io.File(filesDir, "boot_sound.mp3"), vol)
+                    result.success(null)
+                }
+                "stopBoot" -> { stopBoot(); result.success(null) }
                 else -> result.notImplemented()
             }
         }
@@ -297,6 +311,19 @@ class MainActivity : FlutterActivity() {
                         result.error("import", e.message, null)
                     }
                 }
+                "pickBootSound" -> {
+                    pendingResult = result
+                    try {
+                        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "audio/*"
+                        }
+                        startActivityForResult(i, 9997)
+                    } catch (e: Exception) {
+                        pendingResult = null
+                        result.error("pickBootSound", e.message, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -348,6 +375,22 @@ class MainActivity : FlutterActivity() {
             } else {
                 r?.success(null)
             }
+        } else if (requestCode == 9997) {
+            // 开机铃声：把所选音频复制到 filesDir/boot_sound.mp3
+            val r = pendingResult
+            pendingResult = null
+            var ok = false
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    contentResolver.openInputStream(data.data!!)?.use { ins ->
+                        java.io.File(filesDir, "boot_sound.mp3").outputStream().use { os ->
+                            ins.copyTo(os)
+                        }
+                    }
+                    ok = true
+                } catch (_: Exception) {}
+            }
+            r?.success(ok)
         }
         super.onActivityResult(requestCode, resultCode, data)
     }
@@ -355,9 +398,80 @@ class MainActivity : FlutterActivity() {
     private fun stopChime() {
         chime?.let {
             try { if (it.isPlaying) it.stop() } catch (_: Exception) {}
-            it.release()
+            try { it.release() } catch (_: Exception) {}
         }
         chime = null
+    }
+
+    /** 自定义开机铃声：优先播放 filesDir/boot_sound.mp3；文件不存在时回退内置提示音。 */
+    private fun playBoot(f: java.io.File, volume: Float) {
+        stopBoot()
+        try {
+            boot = if (f.exists()) MediaPlayer().apply {
+                setDataSource(f.absolutePath)
+                setVolume(volume, volume)
+                setOnCompletionListener { mp -> try { mp.release() } catch (_: Exception) {}; boot = null }
+                prepare()
+                start()
+            } else MediaPlayer.create(this, R.raw.finish_chime)?.apply {
+                setVolume(volume, volume)
+                setOnCompletionListener { mp -> try { mp.release() } catch (_: Exception) {}; boot = null }
+                start()
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun stopBoot() {
+        boot?.let {
+            try { if (it.isPlaying) it.stop() } catch (_: Exception) {}
+            try { it.release() } catch (_: Exception) {}
+        }
+        boot = null
+    }
+
+    /**
+     * 专注滴答：AudioTrack 直接播放程序生成的一声短音（80ms，900Hz，指数衰减），
+     * 走媒体流——不依赖 ToneGenerator（不少 ROM 上系统流静音/勿扰时静默失败），
+     * 设置里的提示音量线性生效。播完在标记回调里自释放。
+     */
+    private fun playTick(volume0to100: Int) {
+        if (volume0to100 <= 0) return
+        try {
+            val rate = 44100
+            val samples = (rate * 0.08).toInt()
+            val gain = volume0to100 / 100f * 0.9f
+            val pcm = ShortArray(samples)
+            for (i in 0 until samples) {
+                val t = i.toDouble() / rate
+                val env = Math.exp(-t / 0.035)
+                val v = Math.sin(2.0 * Math.PI * 900.0 * t) * env * gain
+                pcm[i] = (v * Short.MAX_VALUE).toInt().toShort()
+            }
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            val fmt = AudioFormat.Builder()
+                .setSampleRate(rate)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .build()
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(attrs)
+                .setAudioFormat(fmt)
+                .setBufferSizeInBytes(pcm.size * 2)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build()
+            track.write(pcm, 0, pcm.size)
+            track.setNotificationMarkerPosition(samples)
+            track.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
+                override fun onMarkerReached(t: AudioTrack?) {
+                    try { t?.pause(); t?.release() } catch (_: Exception) {}
+                }
+                override fun onPeriodicNotification(t: AudioTrack?) {}
+            })
+            track.play()
+        } catch (_: Exception) {}
     }
 
     private fun vibrate(ms: Long) {

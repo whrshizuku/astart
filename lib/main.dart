@@ -6,8 +6,8 @@ import 'channels/native.dart';
 import 'screens/dump.dart';
 import 'screens/focus.dart';
 import 'screens/home.dart';
-import 'screens/idea.dart';
 import 'screens/manual.dart';
+import 'screens/search.dart';
 import 'screens/segment_screen.dart';
 import 'screens/splash.dart';
 import 'screens/stats.dart';
@@ -213,7 +213,7 @@ class Root extends StatefulWidget {
 }
 
 /// 主骨架：首页是主体（老版 TodayScreen），底栏 5 键切换 section。
-/// 底栏：念头 · 捋一捋 · 功能键(动手吧) · 专注 · 统计。
+/// 底栏：搜索 · 捋一捋 · 动手吧 · 专注 · 统计。
 /// body 内嵌一个 Navigator：首页是其根路由，section 页推到该嵌套 navigator
 /// （只占 body 区，Scaffold.bottomNavigationBar 始终常驻——老版 selectNav 行为）。
 /// 点键后该键保持番茄红，持续到另一个键被点击。切换 section 用 pushReplacement 防栈堆积。
@@ -240,7 +240,7 @@ class _RootState extends State<Root> {
 
   /// 短按功能键 = 动手吧(速记倒进来)文字输入。
   void _openDumpText() => _goto(const DumpScreen(), 2);
-  void _openIdea() => _goto(const IdeaScreen(), 0);
+  void _openSearch() => _goto(const SearchScreen(), 0);
   void _openSegment() => _goto(const SegmentScreen(), 1);
   void _openFocus() => _goto(const FocusScreen(showBack: true), 3);
   void _openStats() => _goto(const StatsScreen(), 4);
@@ -272,19 +272,12 @@ class _RootState extends State<Root> {
         ),
       ),
       bottomNavigationBar: SafeArea(
-        child: Container(
+        child: SizedBox(
           height: 64,
-          margin: const EdgeInsets.symmetric(horizontal: S.md, vertical: S.xs),
-          padding: const EdgeInsets.symmetric(horizontal: S.md),
-          decoration: BoxDecoration(
-            color: c.card,
-            borderRadius: BorderRadius.circular(S.radius),
-            border: Border.all(color: c.line),
-          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _navKey(c, Icons.lightbulb_outline, _last == 0, _openIdea),
+              _navKey(c, Icons.search_outlined, _last == 0, _openSearch),
               _navKey(c, Icons.call_split, _last == 1, _openSegment),
               _funcButton,
               _navKey(c, Icons.timer_outlined, _last == 3, _openFocus),
@@ -307,7 +300,7 @@ class _RootState extends State<Root> {
     );
   }
 
-  /// 功能键 = 动手吧。短按=文字输入。全局无字，纯图标。
+  /// 中央红钮 = 动手吧。短按=文字输入。全局无字，纯图标。
   Widget get _funcButton {
     final c = ThemeTokens.of(context);
     return GestureDetector(

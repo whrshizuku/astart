@@ -88,7 +88,7 @@ class _StepsScreenState extends State<StepsScreen> {
     final ctl = TextEditingController();
     final v = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
         title: Text('加一步',
@@ -101,9 +101,11 @@ class _StepsScreenState extends State<StepsScreen> {
           decoration: InputDecoration(hintText: '写清楚这一步做什么', hintStyle: TextStyle(color: c.inkSoft)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('算了', style: TextStyle(color: c.inkSoft))),
+          // 用弹框自身 dctx：步骤页在 body 内嵌导航器内，弹框挂根导航器，
+          // 误用页面 context 会关掉步骤页、弹框卡住。
+          TextButton(onPressed: () => Navigator.pop(dctx), child: Text('算了', style: TextStyle(color: c.inkSoft))),
           TextButton(
-            onPressed: () => Navigator.pop(context, ctl.text.trim()),
+            onPressed: () => Navigator.pop(dctx, ctl.text.trim()),
             child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -123,7 +125,7 @@ class _StepsScreenState extends State<StepsScreen> {
     final ctl = TextEditingController(text: it.title);
     final v = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
         title: Text('改这一步',
@@ -135,9 +137,9 @@ class _StepsScreenState extends State<StepsScreen> {
           cursorColor: c.accent,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('算了', style: TextStyle(color: c.inkSoft))),
+          TextButton(onPressed: () => Navigator.pop(dctx), child: Text('算了', style: TextStyle(color: c.inkSoft))),
           TextButton(
-            onPressed: () => Navigator.pop(context, ctl.text.trim()),
+            onPressed: () => Navigator.pop(dctx, ctl.text.trim()),
             child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],

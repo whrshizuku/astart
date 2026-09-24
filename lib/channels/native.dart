@@ -89,6 +89,29 @@ class Native {
   static Future<void> chime() => _snd.invokeMethod('chime');
 
   static Future<void> stopChime() => _snd.invokeMethod('stopChime');
+
+  /// 开机铃声：原生侧按 start_prefs 里的开关与音量自行决定是否播放。
+  static Future<void> bootSound() => _snd.invokeMethod('playBoot');
+  static Future<void> previewBoot(int volume) =>
+      _snd.invokeMethod('previewBoot', {'volume': volume});
+  static Future<void> stopBoot() => _snd.invokeMethod('stopBoot');
+}
+
+/// 系统语音引擎（厂商自研离线优先），与 Vosk 互为备选。事件同 {type,text}。
+class SystemVoice {
+  static const _ch = MethodChannel('start/voice');
+  static const _evt = EventChannel('start/voice/evt');
+  static Stream<Map<String, Object?>>? _events;
+
+  static Stream<Map<String, Object?>> events() {
+    return _events ??= _evt.receiveBroadcastStream().map((e) {
+      final m = (e as Map<Object?, Object?>).cast<String, Object?>();
+      return m;
+    });
+  }
+
+  static Future<void> start() => _ch.invokeMethod('start');
+  static Future<void> stop() => _ch.invokeMethod('stop');
 }
 
 /// 文件导入导出：走系统 SAF（ACTION_CREATE_DOCUMENT / ACTION_OPEN_DOCUMENT），
@@ -102,6 +125,10 @@ class FileApi {
   }
 
   static Future<String?> import() => _ch.invokeMethod<String?>('import');
+
+  /// 选择音频文件复制进应用私有目录作为开机铃声，返回是否成功。
+  static Future<bool> pickBootSound() async =>
+      (await _ch.invokeMethod<bool>('pickBootSound')) ?? false;
 }
 
 /// 语音识别：Vosk 离线引擎（开源，中文模型，首次联网下载模型后离线识别）。

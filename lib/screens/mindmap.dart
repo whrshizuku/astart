@@ -148,6 +148,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
             }
           });
         },
+        onLongPress: () => _nodeMenu(n),
         child: Pressable(
           onTap: () => setState(() => _sel = n.id),
           onDoubleTap: () => _editNode(n),
@@ -201,6 +202,9 @@ class _MindMapScreenState extends State<MindMapScreen> {
                   tip: '加子节点',
                   color: c.accent,
                   onTap: () => _addNode(_sel == 0 ? widget.rootId : _sel)),
+              IconBtn(Icons.download_outlined,
+                  tip: '导入日程 / 随手做 / 步骤',
+                  onTap: () => _importItems(_sel == 0 ? widget.rootId : _sel)),
               if (_sel != 0 && !isRootSel)
                 IconBtn(Icons.playlist_add, tip: '加同级节点',
                     onTap: () {
@@ -234,6 +238,218 @@ class _MindMapScreenState extends State<MindMapScreen> {
     setState(() => _sel = n.id);
     if (!mounted) return;
     await _editNode(s.byId(n.id)!, removeIfEmpty: true);
+  }
+
+  /// 导入：把日程 / 随手做 / 小步骤复制进导图（选中节点的子枝），多选批量入。
+  Future<void> _importItems(int parentId) async {
+    final s = StartStore.I;
+    final pool = s.items
+        .where((it) => it.parentId != 0 ||
+            (it.kind == Item.kindTask && it.title.trim().isNotEmpty))
+        .where((it) => it.id != widget.rootId)
+        .toList()
+      ..sort((a, b) => b.id.compareTo(a.id));
+    final picked = <int>{};
+    await showStartSheet(context, (ctx) {
+      final c = ThemeTokens.of(ctx);
+      return StatefulBuilder(builder: (ctx, setSt) {
+        String kindName(Item it) {
+          if (it.parentId != 0) return '步骤';
+          return it.dueTime > 0 ? '日程' : '随手做';
+        }
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(S.md, S.md, S.md, S.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text('导入条目',
+                      style: TextStyle(
+                          fontSize: S.textLg,
+                          fontWeight: FontWeight.bold,
+                          color: c.ink)),
+                  const Spacer(),
+                  Text('选好挂到当前枝上',
+                      style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+                ],
+              ),
+              const SizedBox(height: S.sm),
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 380),
+                  child: pool.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: S.xl),
+                          child: Center(
+                              child: Text('还没有日程和随手做',
+                                  style: TextStyle(
+                                      fontSize: S.textSm, color: c.inkSoft))),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: pool.length,
+                          itemBuilder: (_, i) {
+                            final it = pool[i];
+                            final on = picked.contains(it.id);
+                            return Pressable(
+                              onTap: () => setSt(() {
+                                on ? picked.remove(it.id) : picked.add(it.id);
+                              }),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: S.xxs),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      on
+                                          ? Icons.check_circle
+                                          : Icons.circle_outlined,
+                                      size: 18,
+                                      color:
+                                          on ? c.accent : c.inkSoft,
+                                    ),
+                                    const SizedBox(width: S.sm),
+                                    Expanded(
+                                      child: Text(
+                                        it.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            fontSize: S.textMd, color: c.ink),
+                                      ),
+                                    ),
+                                    Text(kindName(it),
+                                        style: TextStyle(
+                                            fontSize: S.textSm - 1,
+                                            color: c.inkSoft)),
+                                    if (it.parentId != 0) ...[
+                                      const SizedBox(width: S.xs),
+                                      Flexible(
+                                        child: Text(
+                                          '属于 ${s.byId(it.parentId)?.title ?? '任务'}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                              fontSize: S.textSm - 1,
+                                              color: c.inkSoft),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ),
+              const SizedBox(height: S.md),
+              Pressable(
+                onTap: picked.isEmpty
+                    ? null
+                    : () async {
+                        final s2 = StartStore.I;
+                        for (final id in picked) {
+                          final it = s2.byId(id);
+                          if (it == null) continue;
+                          final name = it.parentId != 0
+                              ? it.title
+                              : it.title.trim();
+                          if (name.isEmpty) continue;
+                          await s2.put(Item(
+                              kind: Item.kindInbox,
+                              title: name,
+                              parentId: parentId,
+                              rank: -1));
+                        }
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                child: Container(
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: picked.isEmpty ? c.line : c.accent,
+                    borderRadius: BorderRadius.circular(S.radius),
+                  ),
+                  child: Text(
+                    picked.isEmpty ? '点条目选中' : '导入（${picked.length}）',
+                    style: TextStyle(
+                        fontSize: S.textMd,
+                        fontWeight: FontWeight.bold,
+                        color: picked.isEmpty ? c.inkSoft : Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      });
+    });
+    if (mounted) setState(() {});
+  }
+
+  /// 长按节点：快捷编辑菜单（编辑文字 / 加子节点 / 剪掉这枝）。
+  Future<void> _nodeMenu(Item n) async {
+    final s = StartStore.I;
+    final c = ThemeTokens.of(context);
+    final isRoot = n.id == widget.rootId;
+    await showStartSheet(context, (ctx) {
+      Widget row(IconData icon, String text, VoidCallback onTap,
+              {Color? color}) =>
+          Pressable(
+            onTap: () {
+              Navigator.pop(ctx);
+              onTap();
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: S.sm),
+              child: Row(
+                children: [
+                  Icon(icon, size: 20, color: color ?? c.ink),
+                  const SizedBox(width: S.sm),
+                  Text(text,
+                      style: TextStyle(
+                          fontSize: S.textMd,
+                          fontWeight: FontWeight.bold,
+                          color: color ?? c.ink)),
+                ],
+              ),
+            ),
+          );
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(S.md, S.md, S.md, S.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(n.title.trim().isEmpty ? '（空）' : n.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: S.textMd,
+                    fontWeight: FontWeight.bold,
+                    color: c.ink)),
+            const SizedBox(height: S.xs),
+            row(Icons.edit_outlined, '编辑文字', () async => _editNode(n)),
+            row(Icons.subdirectory_arrow_right, '加子节点',
+                () => _addNode(n.id), color: c.accent),
+            if (!isRoot)
+              row(Icons.delete_outline, '剪掉这枝', () async {
+                final snap = s.exportJson();
+                s.delete(n.id, cascade: true);
+                setState(() => _sel = 0);
+                if (!mounted) return;
+                UndoHost.show(
+                    context, '剪掉一枝', () async => s.restoreJson(snap));
+              }, color: c.accent),
+          ],
+        ),
+      );
+    });
+    if (mounted) setState(() {});
   }
 
   /// 编辑节点文本；新建时留空则删除该节点。

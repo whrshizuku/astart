@@ -138,6 +138,7 @@ class _FocusScreenState extends State<FocusScreen> {
   }
 
   Widget _buildSetup(C c, StartStore s) {
+    final custom = !presets.contains(_minutes);
     return Column(
       children: [
         _TopBar(onBack: widget.showBack ? () => Navigator.pop(context) : null),
@@ -145,66 +146,36 @@ class _FocusScreenState extends State<FocusScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                _task?.title ?? '只做一件事',
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: S.textLg, fontWeight: FontWeight.bold, color: c.ink),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: S.xl),
+                child: Text(
+                  _task?.title ?? '只做一件事',
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: S.textLg, fontWeight: FontWeight.bold, color: c.ink),
+                ),
               ),
+              const SizedBox(height: S.xl),
+              // 当前时长大字：预设或自定义后都一眼可见（等宽，不跳动）。
+              Text('${_minutes.toString().padLeft(2, '0')}:00',
+                  style: TextStyle(
+                      fontSize: 56,
+                      fontWeight: FontWeight.w300,
+                      color: c.ink,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
               const SizedBox(height: S.lg),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              // 预设 + 自定义同一行胶囊，Wrap 防小屏挤出。
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: S.sm,
+                runSpacing: S.xs,
                 children: [
-                  for (final m in presets)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: S.xs),
-                      child: Pressable(
-                        onTap: () => setState(() => _minutes = m),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: S.md, vertical: S.xs),
-                          decoration: BoxDecoration(
-                            color: _minutes == m ? c.accent : c.card,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: _minutes == m ? c.accent : c.line),
-                          ),
-                          child: Text('$m',
-                              style: TextStyle(
-                                  fontSize: S.textMd,
-                                  fontWeight: FontWeight.bold,
-                                  color: _minutes == m ? Colors.white : c.ink)),
-                        ),
-                      ),
-                    ),
+                  for (final m in presets) _minuteChip(c, m),
+                  _customChip(c, custom),
                 ],
               ),
-              const SizedBox(height: S.sm),
-              Pressable(
-                onTap: () async {
-                  final ctl = TextEditingController(text: '$_minutes');
-                  final v = await showStartDialog<int>(
-                    context,
-                    title: '自定义时长（分钟）',
-                    content: TextField(
-                      controller: ctl,
-                      keyboardType: TextInputType.number,
-                      autofocus: true,
-                      decoration: const InputDecoration(hintText: '分钟'),
-                    ),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: Text('算了')),
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, int.tryParse(ctl.text)),
-                          child: Text('好', style: TextStyle(color: c.accent))),
-                    ],
-                  );
-                  ctl.dispose();
-                  if (v != null && v > 0 && v <= 240) setState(() => _minutes = v);
-                },
-                child: Text('自定义',
-                    style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
-              ),
-              const SizedBox(height: S.lg),
+              const SizedBox(height: S.xl),
               Pressable(
                 onTap: _start,
                 child: Container(
@@ -222,6 +193,106 @@ class _FocusScreenState extends State<FocusScreen> {
         ),
       ],
     );
+  }
+
+  Widget _minuteChip(C c, int m) {
+    final on = _minutes == m;
+    return Pressable(
+      onTap: () => setState(() => _minutes = m),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: S.lg, vertical: S.xs),
+        decoration: BoxDecoration(
+          color: on ? c.accent : c.card,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: on ? c.accent : c.line),
+        ),
+        child: Text('$m',
+            style: TextStyle(
+                fontSize: S.textMd,
+                fontWeight: FontWeight.bold,
+                color: on ? Colors.white : c.ink,
+                fontFeatures: const [FontFeature.tabularFigures()])),
+      ),
+    );
+  }
+
+  Widget _customChip(C c, bool on) {
+    return Pressable(
+      onTap: _editCustom,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: S.lg, vertical: S.xs),
+        decoration: BoxDecoration(
+          color: on ? c.accent : c.card,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: on ? c.accent : c.line),
+        ),
+        child: Text(on ? '自定义 $_minutes 分' : '自定义',
+            style: TextStyle(
+                fontSize: S.textMd,
+                fontWeight: FontWeight.bold,
+                color: on ? Colors.white : c.inkSoft)),
+      ),
+    );
+  }
+
+  /// 自定义时长：仅收数字，合法范围 1–240 分钟；非法输入在弹层内提示且不关闭。
+  Future<void> _editCustom() async {
+    final c = ThemeTokens.of(context);
+    final ctl = TextEditingController(text: '$_minutes');
+    await showDialog<void>(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (ctx, setDlg) {
+          String? error;
+          void submit() {
+            final v = int.tryParse(ctl.text.trim());
+            if (v == null || v < 1 || v > 240) {
+              setDlg(() => error = '请输入 1–240 之间的分钟数');
+              return;
+            }
+            Navigator.pop(ctx);
+            setState(() => _minutes = v);
+          }
+
+          return AlertDialog(
+            backgroundColor: c.card,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
+            title: Text('自定义时长',
+                style:
+                    TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
+            content: SizedBox(
+              width: 220,
+              child: TextField(
+                controller: ctl,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                textAlign: TextAlign.center,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: TextStyle(
+                    fontSize: S.textXl,
+                    fontWeight: FontWeight.bold,
+                    color: c.ink,
+                    fontFeatures: const [FontFeature.tabularFigures()]),
+                decoration: InputDecoration(
+                  suffixText: '分钟',
+                  errorText: error,
+                ),
+                onSubmitted: (_) => submit(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text('算了', style: TextStyle(color: c.inkSoft))),
+              TextButton(
+                  onPressed: submit,
+                  child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold))),
+            ],
+          );
+        },
+      ),
+    );
+    ctl.dispose();
   }
 
   Widget _buildRunning(C c) {

@@ -11,7 +11,7 @@ import 'mindmap.dart';
 /// 捋一捋 = 暂存条目的分类与拆词工坊，也支持「开始」的速记逻辑。
 /// 底部常驻输入条：写下来直接按行 / 句末标点拆成多条暂存，⑂ 可先拆词再存。
 /// 进来之后：
-///   - 单条分类为 念头 / 日程（设时间）/ 随手做
+///   - 单条分类为 日程（设时间）/ 随手做
 ///   - 单条捋一捋（大爆炸拆词），选中词各成一条新暂存，再逐条分类
 ///   - 批量选择后整体分类或删除（带撤销）
 /// 暂存一旦分类即离开本页（流入首页三块）。
@@ -106,8 +106,6 @@ class _SegmentScreenState extends State<SegmentScreen> {
                               : _selected.addAll(list.map((e) => e.id));
                         });
                       }),
-                      IconBtn(Icons.lightbulb_outline, tip: '全变念头',
-                          onTap: () => _batchClassify(Item.kindIdea)),
                       IconBtn(Icons.checklist_outlined, tip: '全变随手做',
                           onTap: () => _batchClassify(Item.kindTask, dueTime: 0)),
                       IconBtn(Icons.delete_outline, tip: '删除', onTap: _batchDelete),
@@ -211,7 +209,7 @@ class _SegmentScreenState extends State<SegmentScreen> {
   }
 }
 
-/// 暂存卡片：文本 + 三分类（念头/日程/随手做）+ 捋一捋拆词 + 删除。
+/// 暂存卡片：文本 + 分类（日程/随手做）+ 捋一捋拆词 + 删除。
 class _InboxCard extends StatelessWidget {
   final Item it;
   final bool selected;
@@ -227,13 +225,6 @@ class _InboxCard extends StatelessWidget {
     required this.onEnterSelect,
     required this.onChange,
   });
-
-  Future<void> _toIdea() async {
-    it.kind = Item.kindIdea;
-    it.dueTime = 0;
-    await StartStore.I.put(it);
-    onChange();
-  }
 
   Future<void> _toAnytime() async {
     it.kind = Item.kindTask;
@@ -330,8 +321,6 @@ class _InboxCard extends StatelessWidget {
               const SizedBox(height: S.sm),
               Row(
                 children: [
-                  _Act(icon: Icons.lightbulb_outline, onTap: () => _toIdea()),
-                  const SizedBox(width: S.xs),
                   _Act(icon: Icons.event_outlined, onTap: () => _toSchedule(context)),
                   const SizedBox(width: S.xs),
                   _Act(icon: Icons.checklist_outlined, onTap: () => _toAnytime()),

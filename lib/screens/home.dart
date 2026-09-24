@@ -9,15 +9,14 @@ import '../main.dart';
 import '../theme/tokens.dart';
 import '../widgets/editor.dart';
 import '../widgets/ui.dart';
-import 'search.dart';
 import 'settings.dart';
 
-/// 首页 = 今日（复刻老版 TodayScreen）。
+/// 首页 = 今日（复刻老版 TodayScreen 的极简布局）。
 /// 顶栏：Start 字标 + 搜索 + 设置。
-/// 今日头条：大时钟（等宽数字）+ 日期 + 剩余计数 + 今日专注分钟。
-/// 焦点 hero：占首屏，时间轴在首屏外滚动才出现。
-/// 日程时间线：已排期任务按时间升序，左侧时间标签，过期任务显日期（不责备，不变红）。
-/// 随手做：无时间任务，可拖动排序，选择态有 selectBar（计数/全选/完成/删除）。
+/// 今日焦点 hero 占首屏最上方：无焦点=大标语+选一件胶囊+不选直接专注；
+/// 有焦点=大字标题+主胶囊「只做它」+次操作图标。日程卡长按可拖上来设焦点。
+/// 其下大时钟 + 日期 + 一句鼓励。今天 = 已排期（含过期未完成，不责备）+ 手机日历，
+/// 纯文字列表；随手做 = 无时间任务，可拖动排序，长按进选择态。
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -33,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _dateLabel = '';
   int _nowMs = 0;
   List<Map<String, Object?>> _events = [];
+  bool _overSchedule = false;
 
   @override
   void initState() {
@@ -158,8 +158,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
-  /// 合并日程任务与手机日历事件，按 begin 升序。被任务 eventId 消费的事件跳过。
-  List<Map<String, Object?>> _timelineEntries(List<Item> schedule) {
+  /// 今天：今天到期 + 过期未完成（未来的日子还没到，先不来添乱）。
+  List<Item> _todaySchedule() {
+    final now = DateTime.now();
+    final dayEnd =
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final fid = StartStore.I.todayFocus()?.id;
+    final list = StartStore.I
+        .openTasks()
+        .where((it) => it.dueTime > 0 && it.dueTime < dayEnd.millisecondsSinceEpoch && it.id != fid)
+        .toList()
+      ..sort((a, b) => a.dueTime.compareTo(b.dueTime));
+    return list;
+  }
+
+  /// 合并今日任务与手机日历事件，按 begin 升序。被任务 eventId 消费的事件跳过。
+  List<Map<String, Object?>> _mergeToday(List<Item> schedule) {
     final consumed = schedule.map((e) => e.eventId).where((e) => e > 0).toSet();
     final entries = <Map<String, Object?>>[];
     for (final it in schedule) {
@@ -186,60 +200,76 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final focus = s.todayFocus();
     final fid = focus?.id;
     // 焦点任务不在下方列表重复出现：一次只做一件事，避免两套按钮。
-    final schedule = s.openTasks().where((it) => it.dueTime > 0 && it.id != fid).toList()
-      ..sort((a, b) => a.dueTime.compareTo(b.dueTime));
+    final today = _todaySchedule();
     final anytime = s.anytimeTasks().where((it) => it.id != fid).toList();
-    final list = [...schedule, ...anytime];
-    final remaining = list.length;
-    final focusMin = s.todayFocusMinutes();
+    final entries = _mergeToday(today);
+    final remaining = today.length + anytime.length;
+    final encourage =
+        remaining == 0 ? '今天的事都做完了，了不起' : '还有 $remaining 件，一件件来';
 
     return SafeArea(
       child: Column(
         children: [
-          if (_selecting) _selectBar(c, list) else const _TopBar(),
+          if (_selecting) _selectBar(c, [...today, ...anytime]) else const _TopBar(),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(S.md, 0, S.md, S.xl + 16),
               children: [
-                _TodayHead(
-                  hhmm: _hhmm,
-                  date: _dateLabel,
-                  remaining: remaining,
-                  focusMin: focusMin,
+                // 今日焦点在最上方：看完一眼就知道今天只盯哪一件。
+                DragTarget<int>(
+                  onWillAcceptWithDetails: (d) => d.data != fid,
+                  onAcceptWithDetails: (d) async {
+                    await s.setFocus(d.data);
+                    if (mounted) setState(() {});
+                  },
+                  builder: (ctx, cand, _) {
+                    final hovering = cand.isNotEmpty;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 140),
+                      decoration: BoxDecoration(
+                        color: hovering ? c.accentSoft : Colors.transparent,
+                        borderRadius: BorderRadius.circular(S.radius),
+                      ),
+                      child: _FocusHero(
+                        focus: focus,
+                        hovering: hovering,
+                        onPick: _pickFocus,
+                      ),
+                    );
+                  },
                 ),
-                // 日程：小标题常驻（右上角 ＋ 新建日程），有内容才画时间轴。
-                _SectionLabel(
-                  '日程',
-                  icon: Icons.schedule_outlined,
-                  trailing: Pressable(
-                    onTap: _newSchedule,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: S.xs, vertical: S.xxs),
-                      child: Icon(Icons.add, size: 20, color: c.accent),
-                    ),
-                  ),
+                _ClockHead(hhmm: _hhmm, date: _dateLabel, encourage: encourage),
+                // 日程：今天到期 + 过期未完成 + 手机日历，纯文字行；可把随手做拖进来转日程。
+                DragTarget<int>(
+                  onWillAcceptWithDetails: (d) => !_selecting,
+                  onAcceptWithDetails: (d) => _dragToSchedule(d.data),
+                  builder: (ctx, cand, _) {
+                    final hov = cand.isNotEmpty;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 140),
+                      decoration: BoxDecoration(
+                        color: hov ? c.accentSoft : Colors.transparent,
+                        borderRadius: BorderRadius.circular(S.radius),
+                      ),
+                      child: Column(
+                        children: [
+                          _SectionLabel('日程', onAdd: _newSchedule),
+                          if (entries.isNotEmpty)
+                            for (var i = 0; i < entries.length; i++) ...[
+                              if (i > 0) const SizedBox(height: S.xxs),
+                              _todayEntry(entries[i]),
+                            ]
+                          else
+                            const _ListEmpty(msg: '还没有日程'),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-                if (schedule.isNotEmpty || _events.isNotEmpty)
-                  _TimelineColumn(
-                    entries: _timelineEntries(schedule),
-                    nowMs: _nowMs,
-                    selecting: _selecting,
-                    selected: _selected,
-                    onChange: () => setState(() {}),
-                    onEnterSelect: () => setState(() => _selecting = true),
-                  ),
-                // 随手做：没定时间的都待在这。
-                _SectionLabel(
-                  '随手做',
-                  icon: Icons.checklist_outlined,
-                  trailing: Pressable(
-                    onTap: _quickAdd,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: S.xs, vertical: S.xxs),
-                      child: Icon(Icons.add, size: 20, color: c.accent),
-                    ),
-                  ),
+                // 随手做：没定时间的都待在这，可拖动排序；长按整行拖进上面「日程」区转日程。
+                GestureDetector(
+                  onLongPress: () => setState(() => _selecting = true),
+                  child: _SectionLabel('随手做', onAdd: _quickAdd),
                 ),
                 if (anytime.isNotEmpty)
                   ReorderableListView.builder(
@@ -256,51 +286,121 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     },
                     itemBuilder: (_, i) {
                       final it = anytime[i];
-                      return Container(
+                      return LongPressDraggable<int>(
                         key: ValueKey(it.id),
-                        child: _TaskCard(
+                        data: it.id,
+                        delay: const Duration(milliseconds: 120),
+                        axis: Axis.vertical,
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                                maxWidth: MediaQuery.sizeOf(context).width - 96),
+                            child: StartCard(
+                              color: ThemeTokens.of(context).accentSoft,
+                              child: Text(
+                                it.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: S.textMd,
+                                    fontWeight: FontWeight.bold,
+                                    color: ThemeTokens.of(context).ink),
+                              ),
+                            ),
+                          ),
+                        ),
+                        childWhenDragging: Opacity(
+                          opacity: 0.45,
+                          child: _TaskLine(
+                            it: it,
+                            nowMs: _nowMs,
+                            selecting: _selecting,
+                            selected: _selected,
+                            onChange: () => setState(() {}),
+                          ),
+                        ),
+                        child: _TaskLine(
                           it: it,
+                          nowMs: _nowMs,
                           selecting: _selecting,
                           selected: _selected,
                           onChange: () => setState(() {}),
-                          onEnterSelect: () => setState(() {
-                            _selecting = true;
-                            _selected.add(it.id);
-                          }),
                         ),
                       );
                     },
-                  ),
-                // 今日焦点收尾在底部：看完安排，再把最重要的事拖上来或选出来。
-                _SectionLabel('今日焦点', icon: Icons.star_outline),
-                DragTarget<int>(
-                  onWillAcceptWithDetails: (d) => d.data != fid,
-                  onAcceptWithDetails: (d) async {
-                    await s.setFocus(d.data);
-                    if (mounted) setState(() {});
-                  },
-                  builder: (ctx, cand, _) {
-                    final hovering = cand.isNotEmpty;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      decoration: BoxDecoration(
-                        color: hovering ? c.accentSoft : c.accentSoft.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(S.radius),
-                        border: Border.all(
-                            color: hovering ? c.accent : c.line),
-                      ),
-                      child: focus != null
-                          ? HeroCard(focus: focus, onPick: _pickFocus)
-                          : _FocusEmpty(onPick: _pickFocus),
-                    );
-                  },
-                ),
+                  )
+                else
+                  const _ListEmpty(msg: '随手做的事，会排在这里'),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// 「今天」列表里的一行：任务可拖动设焦点，日历事件点击直达系统日历。
+  Widget _todayEntry(Map<String, Object?> e) {
+    if (e['kind'] == 'event') {
+      final ev = e['event'] as Map<String, Object?>;
+      return _EventLine(event: ev, nowMs: _nowMs);
+    }
+    final it = e['item'] as Item;
+    return LongPressDraggable<int>(
+      data: it.id,
+      delay: const Duration(milliseconds: 120),
+      axis: Axis.vertical,
+      feedback: Material(
+        color: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width - 96),
+          child: StartCard(
+            color: ThemeTokens.of(context).accentSoft,
+            child: Text(
+              it.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: S.textMd,
+                  fontWeight: FontWeight.bold,
+                  color: ThemeTokens.of(context).ink),
+            ),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(
+        opacity: 0.45,
+        child: _TaskLine(
+          it: it,
+          nowMs: _nowMs,
+          selecting: _selecting,
+          selected: _selected,
+          onChange: () => setState(() {}),
+        ),
+      ),
+      child: _TaskLine(
+        it: it,
+        nowMs: _nowMs,
+        selecting: _selecting,
+        selected: _selected,
+        onChange: () => setState(() {}),
+      ),
+    );
+  }
+
+  /// 随手做拖进「日程」区：删原条目（可撤销）并打开编辑器选时间，存好即成日程。
+  Future<void> _dragToSchedule(int id) async {
+    final s = StartStore.I;
+    final it = s.items.firstWhere((e) => e.id == id, orElse: () => Item());
+    if (it.id == 0) return;
+    final snap = s.exportJson();
+    await s.delete(id, cascade: true);
+    if (!mounted) return;
+    UndoHost.show(context, '已移入日程，选个时间', () async => s.restoreJson(snap));
+    final ctx = StartApp.navigatorKey.currentContext ?? context;
+    await showItemEditor(ctx, Item()..title = it.title, asSchedule: true);
   }
 
   /// 日程区右上角加号：新建日程（打开即选日期时间，无标题或无时间不会保存）。
@@ -368,7 +468,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 }
 
-/// 顶栏：Start 字标 + 搜索 + 设置。
+/// 顶栏：Start 字标 + 设置（搜索在底栏）。
 class _TopBar extends StatelessWidget {
   const _TopBar();
 
@@ -383,10 +483,6 @@ class _TopBar extends StatelessWidget {
               style: TextStyle(
                   fontSize: S.textLg, fontWeight: FontWeight.bold, color: c.ink)),
           const Spacer(),
-          IconBtn(Icons.search_outlined, tip: '搜索', onTap: () {
-            Navigator.of(context, rootNavigator: true)
-                .push(MaterialPageRoute(builder: (_) => const SearchScreen()));
-          }),
           IconBtn(Icons.settings_outlined, tip: '设置', onTap: () {
             Navigator.of(context, rootNavigator: true)
                 .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
@@ -397,24 +493,219 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// 今日头条：左列大时钟（等宽）+ 日期；右列剩余计数 + 今日专注分钟（点击进专注）。
-class _TodayHead extends StatelessWidget {
+/// 今日焦点 hero：无卡片、大留白，是整页最大的视觉锚点。
+/// 无焦点 = 超大标语 + 选一件胶囊 + 不选直接专注；有焦点 = 大字标题 + 主胶囊 + 次操作。
+class _FocusHero extends StatelessWidget {
+  final Item? focus;
+  final bool hovering;
+  final VoidCallback onPick;
+  const _FocusHero({required this.focus, required this.hovering, required this.onPick});
+
+  Future<void> _complete(BuildContext context) async {
+    final s = StartStore.I;
+    final it = focus!;
+    final snap = s.exportJson();
+    it.done = true;
+    await s.put(it);
+    if (!context.mounted) return;
+    UndoHost.show(context, '完成一件，漂亮', () async => s.restoreJson(snap));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ThemeTokens.of(context);
+    final s = StartStore.I;
+    final it = focus;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(S.xs, S.lg, S.xs, S.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (it == null) ...[
+            // 空态：一句大标语把决策压到最小。
+            Text('今天只做\n一件就好',
+                style: TextStyle(
+                    fontSize: 32,
+                    height: 1.25,
+                    fontWeight: FontWeight.bold,
+                    color: c.ink)),
+            const SizedBox(height: S.xs),
+            Text('选好后，打开 Start 就能直接开始',
+                style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+            const SizedBox(height: S.md),
+            // 主胶囊：选一件事（也可以把日程卡直接拖到这里）。
+            Pressable(
+              onTap: onPick,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 30, vertical: 13),
+                decoration: BoxDecoration(
+                    color: c.accent, borderRadius: BorderRadius.circular(999)),
+                child: Text('选一件',
+                    style: TextStyle(
+                        fontSize: S.textLg,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: S.xxs),
+            Pressable(
+              onTap: () => Navigator.of(context, rootNavigator: true)
+                  .pushNamed('/focus'),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: S.xxs, vertical: S.xxs),
+                child: Text('不选，直接专注',
+                    style: TextStyle(
+                        fontSize: S.textSm,
+                        fontWeight: FontWeight.bold,
+                        color: c.accent)),
+              ),
+            ),
+          ] else ...[
+            if (it.done)
+              Padding(
+                padding: const EdgeInsets.only(bottom: S.xxs),
+                child: Row(
+                  children: [
+                    const Icon(Icons.verified_outlined,
+                        size: 16, color: Colors.grey),
+                    const SizedBox(width: S.xxs),
+                    Text('主线完成，漂亮',
+                        style: TextStyle(
+                            fontSize: S.textSm,
+                            fontWeight: FontWeight.bold,
+                            color: c.inkSoft)),
+                  ],
+                ),
+              ),
+            Text(
+              it.title,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 30,
+                  height: 1.25,
+                  fontWeight: FontWeight.bold,
+                  color: it.done ? c.done : c.ink,
+                  decoration:
+                      it.done ? TextDecoration.lineThrough : null),
+            ),
+            if (!it.done) ...[
+              ..._progress(context, s, it),
+              const SizedBox(height: S.md),
+              Row(
+                children: [
+                  // 主胶囊：只做它（进专注）。
+                  Pressable(
+                    onTap: () => Navigator.of(context, rootNavigator: true)
+                        .pushNamed('/focus', arguments: it.id),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      decoration: BoxDecoration(
+                          color: c.accent,
+                          borderRadius: BorderRadius.circular(999)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.play_arrow,
+                              size: 20, color: Colors.white),
+                          const SizedBox(width: S.xxs),
+                          Text('只做它',
+                              style: TextStyle(
+                                  fontSize: S.textMd,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  // 次操作：完成 / 拆步骤 / 编辑 / 换一件，纯图标不抢戏。
+                  IconBtn(Icons.check, tip: '完成', onTap: () => _complete(context)),
+                  IconBtn(Icons.call_split, tip: '拆成小步骤', onTap: () {
+                    Navigator.of(context, rootNavigator: true)
+                        .pushNamed('/steps', arguments: it.id);
+                  }),
+                  IconBtn(Icons.edit_outlined, tip: '编辑',
+                      onTap: () => showItemEditor(context, it)),
+                  // 换一件：降低承诺压力，随时可以重新选。
+                  IconBtn(Icons.swap_horiz, tip: '换一件', onTap: onPick),
+                ],
+              ),
+            ] else
+              // 完成态：给下一件事一个明确的起点。
+              Padding(
+                padding: const EdgeInsets.only(top: S.sm),
+                child: Pressable(
+                  onTap: onPick,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                        color: c.accent,
+                        borderRadius: BorderRadius.circular(999)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.arrow_forward,
+                            size: 20, color: Colors.white),
+                        const SizedBox(width: S.xxs),
+                        Text('下一件',
+                            style: TextStyle(
+                                fontSize: S.textMd,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _progress(BuildContext context, StartStore s, Item it) {
+    final c = ThemeTokens.of(context);
+    final progress = s.subtaskProgress(it.id);
+    if (progress[1] == 0) return const [];
+    return [
+      const SizedBox(height: S.sm),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(999),
+        child: LinearProgressIndicator(
+          value: progress[0] / progress[1],
+          minHeight: 6,
+          backgroundColor: c.accentSoft,
+          valueColor: AlwaysStoppedAnimation(c.accent),
+        ),
+      ),
+      const SizedBox(height: S.xxs),
+      Text('小步骤 ${progress[0]}/${progress[1]}',
+          style: TextStyle(
+              fontSize: S.textSm,
+              color: c.inkSoft,
+              fontFeatures: const [FontFeature.tabularFigures()])),
+    ];
+  }
+}
+
+/// 大时钟 + 日期 + 一句鼓励（红字），节奏像老版一样安静。
+class _ClockHead extends StatelessWidget {
   final String hhmm;
   final String date;
-  final int remaining;
-  final int focusMin;
-  const _TodayHead({
-    required this.hhmm,
-    required this.date,
-    required this.remaining,
-    required this.focusMin,
-  });
+  final String encourage;
+  const _ClockHead({required this.hhmm, required this.date, required this.encourage});
 
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(S.md, S.xs, S.md, S.sm),
+      padding: const EdgeInsets.fromLTRB(S.xs, S.md, S.xs, S.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -436,32 +727,17 @@ class _TodayHead extends StatelessWidget {
             ],
           ),
           const Spacer(),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('$remaining',
+          // 鼓励语：低阻力措辞，永远不催。
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.only(top: S.xs),
+              child: Text(encourage,
+                  textAlign: TextAlign.end,
                   style: TextStyle(
-                      fontSize: 24,
+                      fontSize: S.textSm,
                       fontWeight: FontWeight.bold,
-                      color: c.accent,
-                      height: 1.0,
-                      fontFeatures: const [FontFeature.tabularFigures()])),
-              const SizedBox(height: S.xxs),
-              Text('件未完成',
-                  style: TextStyle(fontSize: 11, color: c.inkSoft)),
-              const SizedBox(height: S.xs),
-              Pressable(
-                onTap: () => Navigator.of(context, rootNavigator: true).pushNamed('/focus'),
-                child: Text(
-                  focusMin > 0 ? '专注 $focusMin 分' : '去专注',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: c.inkSoft,
-                      fontFeatures: const [FontFeature.tabularFigures()]),
-                ),
-              ),
-            ],
+                      color: c.accent)),
+            ),
           ),
         ],
       ),
@@ -471,261 +747,57 @@ class _TodayHead extends StatelessWidget {
 
 class _SectionLabel extends StatelessWidget {
   final String text;
-  final IconData? icon;
-  final Widget? trailing;
-  const _SectionLabel(this.text, {this.icon, this.trailing});
+  final VoidCallback? onAdd;
+  const _SectionLabel(this.text, {this.onAdd});
 
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(S.xxs, S.md, 0, S.xs),
+      padding: const EdgeInsets.fromLTRB(S.xxs, S.lg, 0, S.xs),
       child: Row(
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 14, color: c.inkSoft),
-            const SizedBox(width: S.xxs),
-          ],
           Text(text,
               style: TextStyle(
                   fontSize: S.textSm, color: c.inkSoft, fontWeight: FontWeight.bold)),
           const Spacer(),
-          if (trailing != null) trailing!,
+          if (onAdd != null)
+            Pressable(
+              onTap: onAdd,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: S.xs, vertical: S.xxs),
+                child: Icon(Icons.add, size: 20, color: c.accent),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-/// 日程时间线：左侧时间标签（番茄红，固定宽），右侧任务卡/事件卡，行间竖线连接成轴。
-/// 过期任务（未完成且时间已过）显日期+时刻两行，不责备、不变红。
-class _TimelineColumn extends StatelessWidget {
-  final List<Map<String, Object?>> entries;
-  final int nowMs;
-  final bool selecting;
-  final Set<int> selected;
-  final VoidCallback onChange;
-  final VoidCallback onEnterSelect;
-  const _TimelineColumn({
-    required this.entries,
-    required this.nowMs,
-    required this.selecting,
-    required this.selected,
-    required this.onChange,
-    required this.onEnterSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // 「现在」指示：插到第一个未到时刻的条目前，一眼看到当前时刻在轴上的位置。
-    final nowShown = <Widget>[];
-    for (var i = 0; i < entries.length; i++) {
-      final t = entries[i]['time'] as int;
-      if (nowShown.isEmpty && t > nowMs) nowShown.add(const _NowRow());
-      nowShown.add(_entryRow(entries[i]));
-      if (i < entries.length - 1) nowShown.add(const SizedBox(height: S.xs));
-    }
-    return Column(children: nowShown);
-  }
-
-  Widget _entryRow(Map<String, Object?> e) {
-    if (e['kind'] == 'event') {
-      final ev = e['event'] as Map<String, Object?>;
-      final begin = (ev['begin'] as num?)?.toInt() ?? 0;
-      return _EventRow(event: ev, overdue: begin > 0 && begin < nowMs);
-    }
-    final it = e['item'] as Item;
-    return _TimelineRow(
-      it: it,
-      overdue: !it.done && it.dueTime > 0 && it.dueTime < nowMs,
-      selecting: selecting,
-      selected: selected,
-      onChange: onChange,
-      onEnterSelect: onEnterSelect,
-    );
-  }
-}
-
-class _TimelineRow extends StatelessWidget {
-  final Item it;
-  final bool overdue;
-  final bool selecting;
-  final Set<int> selected;
-  final VoidCallback onChange;
-  final VoidCallback onEnterSelect;
-  const _TimelineRow({
-    required this.it,
-    required this.overdue,
-    required this.selecting,
-    required this.selected,
-    required this.onChange,
-    required this.onEnterSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = ThemeTokens.of(context);
-    final sel = selected.contains(it.id);
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 时间标签 + 竖线
-          SizedBox(
-            width: 54,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (overdue)
-                  Text(
-                    _mmdd(it.dueTime),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: c.inkSoft,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                Text(
-                  _hm(it.dueTime),
-                  style: TextStyle(
-                    fontSize: overdue ? 11 : S.textSm,
-                    fontWeight: FontWeight.bold,
-                    color: overdue ? c.inkSoft : c.accent,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                const SizedBox(height: 2),
-                // 轴节点圆：完成=实心，未到期=番茄红空心，过期=灰空心。
-                Container(
-                  width: 11,
-                  height: 11,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: it.done ? c.accent : Colors.transparent,
-                    border: Border.all(
-                      color: it.done
-                          ? c.accent
-                          : (overdue ? c.line : c.accent),
-                      width: 2,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    width: 1.5,
-                    color: c.line,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: S.sm),
-          Expanded(
-            // 长按拖动日程卡，甩到页面底部「今日焦点」上即可设为焦点。
-            child: LongPressDraggable<int>(
-              data: it.id,
-              delay: const Duration(milliseconds: 120),
-              axis: Axis.vertical,
-              feedback: Material(
-                color: Colors.transparent,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                      maxWidth: MediaQuery.sizeOf(context).width - 96),
-                  child: StartCard(
-                    color: c.accentSoft,
-                    child: Text(
-                      it.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: S.textMd,
-                          fontWeight: FontWeight.bold,
-                          color: c.ink),
-                    ),
-                  ),
-                ),
-              ),
-              childWhenDragging: Opacity(
-                opacity: 0.45,
-                child: _TaskCard(
-                  it: it,
-                  selecting: selecting,
-                  selected: selected,
-                  onChange: onChange,
-                  onEnterSelect: onEnterSelect,
-                ),
-              ),
-              child: _TaskCard(
-                it: it,
-                selecting: selecting,
-                selected: selected,
-                onChange: onChange,
-                onEnterSelect: onEnterSelect,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _hm(int ms) {
-    final d = DateTime.fromMillisecondsSinceEpoch(ms);
-    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-  }
-
-  static String _mmdd(int ms) {
-    final d = DateTime.fromMillisecondsSinceEpoch(ms);
-    return '${d.month}/${d.day}';
-  }
-}
-
-/// 「现在」时刻指示：红点 + 小字，横线贯穿右侧，插在时间轴当前时刻位置。
-class _NowRow extends StatelessWidget {
-  const _NowRow();
+/// 列表空态：一句话，安静留白。
+class _ListEmpty extends StatelessWidget {
+  final String msg;
+  const _ListEmpty({required this.msg});
 
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: S.xxs),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 54,
-            child: Column(
-              children: [
-                Text('现在',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: c.accent)),
-                const SizedBox(height: 2),
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration:
-                      BoxDecoration(shape: BoxShape.circle, color: c.accent),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: S.sm),
-          Expanded(
-            child: Container(height: 1.5, color: c.accent.withOpacity(0.4)),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: S.lg),
+      child: Center(
+        child: Text(msg, style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
       ),
     );
   }
 }
 
-/// 手机日历事件行：无勾选圈，标题 + 来源「手机日历」，点按打开系统日历。
-class _EventRow extends StatelessWidget {
+/// 日历事件行：小方点 + 标题 + 时刻，点击直达系统日历。
+class _EventLine extends StatelessWidget {
   final Map<String, Object?> event;
-  final bool overdue;
-  const _EventRow({required this.event, required this.overdue});
+  final int nowMs;
+  const _EventLine({required this.event, required this.nowMs});
 
   @override
   Widget build(BuildContext context) {
@@ -733,77 +805,48 @@ class _EventRow extends StatelessWidget {
     final begin = (event['begin'] as num?)?.toInt() ?? 0;
     final title = (event['title'] as String?) ?? '';
     final calName = (event['calName'] as String?) ?? '';
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: 54,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (overdue)
-                  Text(_mmdd(begin),
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: c.inkSoft,
-                          fontFeatures: const [FontFeature.tabularFigures()])),
-                Text(_hm(begin),
-                    style: TextStyle(
-                        fontSize: overdue ? 11 : S.textSm,
-                        fontWeight: FontWeight.bold,
-                        color: overdue ? c.inkSoft : c.accent,
-                        fontFeatures: const [FontFeature.tabularFigures()])),
-                const SizedBox(height: 2),
-                // 事件节点：小方点（区别于任务的圆圈）。
-                Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: overdue ? c.line : c.inkSoft,
-                  ),
-                ),
-                Expanded(child: Container(width: 1.5, color: c.line)),
-              ],
-            ),
-          ),
-          const SizedBox(width: S.sm),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: S.xs),
-              child: Pressable(
-                onTap: () => Native.openUrl('content://com.android.calendar/time/$begin'),
-                child: StartCard(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: S.md, vertical: S.sm),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: S.textMd,
-                              fontWeight: FontWeight.bold,
-                              color: c.ink)),
-                      const SizedBox(height: S.xxs),
-                      Row(
-                        children: [
-                          Icon(Icons.event_outlined, size: 13, color: c.inkSoft),
-                          const SizedBox(width: S.xxs),
-                          Text('手机日历${calName.isEmpty ? '' : ' · $calName'}',
-                              style: TextStyle(
-                                  fontSize: S.textSm, color: c.inkSoft)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+    final overdue = begin > 0 && begin < nowMs;
+    return Pressable(
+      onTap: () => Native.openUrl('content://com.android.calendar/time/$begin'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: S.xs),
+        child: Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(2),
+                color: overdue ? c.line : c.inkSoft,
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: S.sm),
+            Expanded(
+              child: Text(
+                title.isEmpty ? '(无标题)' : title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: S.textMd,
+                    fontWeight: FontWeight.bold,
+                    color: c.ink),
+              ),
+            ),
+            const SizedBox(width: S.sm),
+            Text(
+              overdue ? _mmdd(begin) : _hm(begin),
+              style: TextStyle(
+                  fontSize: S.textSm,
+                  fontWeight: FontWeight.bold,
+                  color: overdue ? c.inkSoft : c.accent,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
+            ),
+            if (calName.isNotEmpty) ...[
+              const SizedBox(width: S.xs),
+              Icon(Icons.event_outlined, size: 13, color: c.inkSoft),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -819,19 +862,91 @@ class _EventRow extends StatelessWidget {
   }
 }
 
-/// 通用任务卡：勾选、标题、子步骤进度、时间、编辑、双击删除、长按进选择态。
-class _TaskCard extends StatelessWidget {
+/// 日程时刻胶囊：番茄红小字，点一下闪红底并弹时间选择，同日改时分即时生效（提醒自动跟随）。
+class _TimeChip extends StatefulWidget {
   final Item it;
+  final bool overdue;
+  final VoidCallback onChange;
+  const _TimeChip({required this.it, required this.overdue, required this.onChange});
+
+  @override
+  State<_TimeChip> createState() => _TimeChipState();
+}
+
+class _TimeChipState extends State<_TimeChip> {
+  bool _flash = false;
+
+  Future<void> _pick() async {
+    setState(() => _flash = true);
+    Timer(const Duration(milliseconds: 240), () {
+      if (mounted) setState(() => _flash = false);
+    });
+    final d0 = DateTime.fromMillisecondsSinceEpoch(widget.it.dueTime);
+    final c = ThemeTokens.of(context);
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(d0),
+      builder: (_, child) => Theme(
+        data: Theme.of(context)
+            .copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: c.accent)),
+        child: child!,
+      ),
+    );
+    if (t == null) return;
+    widget.it.dueTime = DateTime(d0.year, d0.month, d0.day, t.hour, t.minute)
+        .millisecondsSinceEpoch;
+    await StartStore.I.put(widget.it);
+    widget.onChange();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ThemeTokens.of(context);
+    final d = DateTime.fromMillisecondsSinceEpoch(widget.it.dueTime);
+    final label = widget.overdue
+        ? '${d.month}/${d.day}'
+        : '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    return Pressable(
+      scale: 0.88,
+      onTap: _pick,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: S.xs, vertical: 2),
+        decoration: BoxDecoration(
+          color: _flash ? c.accent : c.accentSoft,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+              fontSize: S.textSm,
+              fontWeight: FontWeight.bold,
+              color: _flash
+                  ? Colors.white
+                  : widget.overdue
+                      ? c.inkSoft
+                      : c.accent,
+              fontFeatures: const [FontFeature.tabularFigures()]),
+        ),
+      ),
+    );
+  }
+}
+
+/// 任务行（日程 / 随手做共用）：勾选、标题、小步骤进度、时刻，纯文字不套卡片。
+class _TaskLine extends StatelessWidget {
+  final Item it;
+  final int nowMs;
   final bool selecting;
   final Set<int> selected;
   final VoidCallback onChange;
-  final VoidCallback onEnterSelect;
-  const _TaskCard({
+  const _TaskLine({
     required this.it,
+    required this.nowMs,
     required this.selecting,
     required this.selected,
     required this.onChange,
-    required this.onEnterSelect,
   });
 
   @override
@@ -841,260 +956,90 @@ class _TaskCard extends StatelessWidget {
     final progress = s.subtaskProgress(it.id);
     final hasSub = progress[1] > 0;
     final sel = selected.contains(it.id);
-    final isFocus = s.todayFocus()?.id == it.id;
+    final overdue = !it.done && it.dueTime > 0 && it.dueTime < nowMs;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: S.xs),
+      padding: const EdgeInsets.symmetric(vertical: S.xs),
       child: Pressable(
         onTap: selecting
             ? () { selected.contains(it.id) ? selected.remove(it.id) : selected.add(it.id); onChange(); }
             : () => showItemEditor(context, it, onDeleted: onChange),
-        onLongPress: selecting ? null : () { selected.add(it.id); onEnterSelect(); },
-        child: StartCard(
-          color: sel ? c.accentSoft : null,
-          padding: const EdgeInsets.symmetric(horizontal: S.md, vertical: S.sm),
-          child: Row(
-            children: [
-              if (selecting)
-                Icon(
-                  sel ? Icons.check_circle : Icons.circle_outlined,
-                  color: sel ? c.accent : c.inkSoft,
-                  size: 22,
-                )
-              else
-                CheckDot(done: it.done, onTap: () async {
-                  it.done = !it.done;
-                  await s.put(it);
-                  onChange();
-                }),
-              const SizedBox(width: S.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      it.title.isEmpty ? it.note.split('\n').first : it.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: S.textMd,
-                        color: it.done ? c.done : c.ink,
-                        decoration: it.done ? TextDecoration.lineThrough : null,
-                        fontWeight: FontWeight.bold,
+        child: Row(
+          children: [
+            if (selecting)
+              Icon(
+                sel ? Icons.check_circle : Icons.circle_outlined,
+                color: sel ? c.accent : c.inkSoft,
+                size: 22,
+              )
+            else
+              CheckDot(done: it.done, onTap: () async {
+                it.done = !it.done;
+                await s.put(it);
+                onChange();
+              }),
+            const SizedBox(width: S.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    it.title.isEmpty ? it.note.split('\n').first : it.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: S.textMd,
+                      color: it.done ? c.done : c.ink,
+                      decoration: it.done ? TextDecoration.lineThrough : null,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (hasSub)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        children: [
+                          Icon(Icons.call_split, size: 12, color: c.inkSoft),
+                          const SizedBox(width: S.xxs),
+                          Text('小步骤 ${progress[0]}/${progress[1]}',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: c.inkSoft,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures()
+                                  ])),
+                        ],
                       ),
                     ),
-                    if (hasSub)
-                      Padding(
-                        padding: const EdgeInsets.only(top: S.xxs),
-                        child: Row(
-                          children: [
-                            Icon(Icons.call_split, size: 13, color: c.inkSoft),
-                            const SizedBox(width: S.xxs),
-                            Text('小步骤 ${progress[0]}/${progress[1]}',
-                                style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
-              if (isFocus && !selecting)
-                Padding(
-                  padding: const EdgeInsets.only(left: S.xs),
-                  child: Icon(Icons.star, size: 18, color: c.accent),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 今日焦点卡 = 首页操作台（ADHD 设计：一屏一事，进度可视，动作就地可及）。
-/// 主按钮「只做它」进专注；完成/换一件/拆步骤/编辑就地操作；完成后给鼓励态。
-class HeroCard extends StatelessWidget {
-  final Item focus;
-  final VoidCallback onPick;
-  const HeroCard({super.key, required this.focus, required this.onPick});
-
-  Future<void> _complete(BuildContext context) async {
-    final s = StartStore.I;
-    final snap = s.exportJson();
-    focus.done = true;
-    await s.put(focus);
-    if (!context.mounted) return;
-    UndoHost.show(context, '完成一件，漂亮', () async => s.restoreJson(snap));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = ThemeTokens.of(context);
-    final s = StartStore.I;
-    final progress = s.subtaskProgress(focus.id);
-    final done = focus.done;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: S.md),
-      child: StartCard(
-        padding: const EdgeInsets.all(S.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 完成时的鼓励行；未完成不显示头部（段标题「今日焦点」已说明一切）。
-            if (done)
-              Row(
-                children: [
-                  Icon(Icons.verified_outlined, size: 18, color: c.accent),
-                  const SizedBox(width: S.xs),
-                  Text('主线完成，漂亮',
+            ),
+            if (it.dueTime > 0) ...[
+              const SizedBox(width: S.sm),
+              selecting
+                  ? Text(
+                      overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
                       style: TextStyle(
                           fontSize: S.textSm,
-                          color: c.inkSoft,
-                          fontWeight: FontWeight.bold)),
-                ],
-              ),
-            if (done) const SizedBox(height: S.sm),
-            Text(
-              focus.title,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: S.textXl,
-                  fontWeight: FontWeight.bold,
-                  color: done ? c.done : c.ink,
-                  decoration: done ? TextDecoration.lineThrough : null),
-            ),
-            if (progress[1] > 0) ...[
-              const SizedBox(height: S.sm),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: progress[1] == 0 ? 0 : progress[0] / progress[1],
-                  minHeight: 6,
-                  backgroundColor: c.cardAlt,
-                  valueColor: AlwaysStoppedAnimation(c.accent),
-                ),
-              ),
-              const SizedBox(height: S.xxs),
-              Text('小步骤 ${progress[0]}/${progress[1]}',
-                  style: TextStyle(
-                      fontSize: S.textSm,
-                      color: c.inkSoft,
-                      fontFeatures: const [FontFeature.tabularFigures()])),
+                          fontWeight: FontWeight.bold,
+                          color: overdue ? c.inkSoft : c.accent,
+                          fontFeatures: const [FontFeature.tabularFigures()]),
+                    )
+                  : _TimeChip(it: it, overdue: overdue, onChange: onChange),
             ],
-            const SizedBox(height: S.md),
-            if (!done) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // 主钮：进专注。
-                  Pressable(
-                    onTap: () => Navigator.of(context, rootNavigator: true)
-                        .pushNamed('/focus', arguments: focus.id),
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                          shape: BoxShape.circle, color: c.accent),
-                      child: const Icon(Icons.play_arrow, size: 28, color: Colors.white),
-                    ),
-                  ),
-                  _HeroAct(
-                      icon: Icons.check,
-                      onTap: () => _complete(context)),
-                  _HeroAct(
-                      icon: Icons.call_split,
-                      onTap: () => Navigator.of(context, rootNavigator: true)
-                          .pushNamed('/steps', arguments: focus.id)),
-                  _HeroAct(
-                      icon: Icons.edit_outlined,
-                      onTap: () => showItemEditor(context, focus)),
-                  // 换一件：降低承诺压力，随时可以重新选。
-                  _HeroAct(icon: Icons.swap_horiz, onTap: onPick),
-                ],
-              ),
-            ] else
-              // 完成态：给下一件事一个明确的起点。
-              Center(
-                child: Pressable(
-                  onTap: onPick,
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: c.cardAlt,
-                        border: Border.all(color: c.line)),
-                    child: Icon(Icons.arrow_forward, size: 24, color: c.ink),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
     );
   }
-}
 
-/// 焦点卡上的圆形次操作钮。
-class _HeroAct extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _HeroAct({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = ThemeTokens.of(context);
-    return Pressable(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: c.cardAlt,
-            border: Border.all(color: c.line)),
-        child: Icon(icon, size: 20, color: c.ink),
-      ),
-    );
+  static String _hm(int ms) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ms);
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
-}
 
-class _FocusEmpty extends StatelessWidget {
-  final VoidCallback onPick;
-  const _FocusEmpty({required this.onPick});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = ThemeTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(S.xs),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('选定一件，今天就不慌',
-              style: TextStyle(
-                  fontSize: S.textXl,
-                  fontWeight: FontWeight.bold,
-                  color: c.ink)),
-          const SizedBox(height: S.md),
-          // 主钮：选一件事（进选择面板）；也可以把日程卡直接拖到这里。
-          Pressable(
-            onTap: onPick,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration:
-                  BoxDecoration(shape: BoxShape.circle, color: c.accent),
-              child: const Icon(Icons.radio_button_checked,
-                  size: 26, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
+  static String _mmdd(int ms) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ms);
+    return '${d.month}/${d.day}';
   }
 }
