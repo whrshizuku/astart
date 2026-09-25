@@ -1,6 +1,8 @@
 // ── 工匠的骄傲与喜悦 · Artisan's Pride & Joy ──
 // 致敬 Smartisan OS
 // 把每一个细节较真到底，是这件小东西全部的骄傲与喜悦。
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -226,6 +228,7 @@ class UndoHost extends StatefulWidget {
 class _UndoHostState extends State<UndoHost> {
   String? _text;
   VoidCallback? _onUndo;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -235,27 +238,39 @@ class _UndoHostState extends State<UndoHost> {
 
   @override
   void dispose() {
+    _timer?.cancel();
     if (UndoHost._state == this) UndoHost._state = null;
     super.dispose();
   }
 
   void _show(String text, VoidCallback onUndo) {
+    _timer?.cancel();
+    _timer = Timer(const Duration(seconds: 6), _dismiss);
     setState(() {
       _text = text;
       _onUndo = onUndo;
     });
   }
 
-  void _dismiss() => setState(() {
-        _text = null;
-        _onUndo = null;
-      });
+  void _dismiss() {
+    _timer?.cancel();
+    _timer = null;
+    if (!mounted) return;
+    setState(() {
+      _text = null;
+      _onUndo = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
-    final visible = _text != null;
-    return Positioned(
+    // 拖拽激活时让位给落点底座（两处浮层同一位置，同显会叠字），计时照常走。
+    return ValueListenableBuilder<bool>(
+      valueListenable: DragDockBus.active,
+      builder: (_, dragging, __) {
+        final visible = _text != null && !dragging;
+        return Positioned(
       left: S.md,
       right: S.md,
       bottom: 84,
@@ -300,6 +315,8 @@ class _UndoHostState extends State<UndoHost> {
           ),
         ),
       ),
+        );
+      },
     );
   }
 }

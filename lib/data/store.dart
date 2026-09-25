@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -13,7 +13,7 @@ class StartStore extends ChangeNotifier {
   static final StartStore I = StartStore._();
 
   static const fileJson = 'start_items.json';
-  static const eulaVersion = 8;
+  static const eulaVersion = 9;
 
   final List<Item> items = [];
   int seq = 1;

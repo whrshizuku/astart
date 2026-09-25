@@ -13,8 +13,8 @@ import 'settings.dart';
 
 /// 首页 = 今日（复刻老版 TodayScreen 的极简布局）。
 /// 顶栏：Start 字标 + 搜索 + 设置。
-/// 今日焦点 hero 占首屏最上方：无焦点=大标语+选一件胶囊+不选直接专注；
-/// 有焦点=大字标题+主胶囊「只做它」+次操作图标。日程卡长按可拖上来设焦点。
+/// 今日焦点 hero 占首屏最上方：无焦点=大标语+选一件胶囊；
+/// 有焦点=大字标题+主胶囊「拆成小步骤」+次操作图标。日程卡长按可拖上来设焦点。
 /// 其下大时钟 + 日期 + 一句鼓励。今天 = 已排期（含过期未完成，不责备）+ 手机日历，
 /// 纯文字列表；随手做 = 无时间任务，可拖动排序，长按进选择态。
 class HomeScreen extends StatefulWidget {
@@ -470,7 +470,7 @@ class _TopBar extends StatelessWidget {
 }
 
 /// 今日焦点 hero：无卡片、大留白，是整页最大的视觉锚点。
-/// 无焦点 = 超大标语 + 选一件胶囊 + 不选直接专注；有焦点 = 大字标题 + 主胶囊 + 次操作。
+/// 无焦点 = 超大标语 + 选一件胶囊；有焦点 = 大字标题 + 主胶囊 + 次操作。
 class _FocusHero extends StatelessWidget {
   final Item? focus;
   final bool hovering;
@@ -525,20 +525,6 @@ class _FocusHero extends StatelessWidget {
                         color: Colors.white)),
               ),
             ),
-            const SizedBox(height: S.xxs),
-            Pressable(
-              onTap: () => Navigator.of(context, rootNavigator: true)
-                  .pushNamed('/focus'),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: S.xxs, vertical: S.xxs),
-                child: Text('直接专注',
-                    style: TextStyle(
-                        fontSize: S.textSm,
-                        fontWeight: FontWeight.bold,
-                        color: c.accent)),
-              ),
-            ),
           ] else ...[
             if (it.done)
               Padding(
@@ -573,10 +559,12 @@ class _FocusHero extends StatelessWidget {
               const SizedBox(height: S.md),
               Row(
                 children: [
-                  // 主胶囊：只做它（进专注）。
+                  // 主胶囊：拆成小步骤（事大先拆小，降低启动阻力）。
                   Pressable(
-                    onTap: () => Navigator.of(context, rootNavigator: true)
-                        .pushNamed('/focus', arguments: it.id),
+                    onTap: () {
+                      Navigator.of(context, rootNavigator: true)
+                          .pushNamed('/steps', arguments: it.id);
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 12),
@@ -586,10 +574,10 @@ class _FocusHero extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.play_arrow,
+                          const Icon(Icons.flare,
                               size: 20, color: Colors.white),
                           const SizedBox(width: S.xxs),
-                          Text('只做它',
+                          Text('拆成小步骤',
                               style: TextStyle(
                                   fontSize: S.textMd,
                                   fontWeight: FontWeight.bold,
@@ -599,12 +587,8 @@ class _FocusHero extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  // 次操作：完成 / 拆步骤 / 编辑 / 重写，纯图标不抢戏。
+                  // 次操作：完成 / 编辑 / 重写，纯图标不抢戏。进专注统一走底栏专注页。
                   IconBtn(Icons.check, tip: '完成', onTap: () => _complete(context)),
-                  IconBtn(Icons.hexagon_outlined, tip: '拆成小步骤', onTap: () {
-                    Navigator.of(context, rootNavigator: true)
-                        .pushNamed('/steps', arguments: it.id);
-                  }),
                   IconBtn(Icons.edit_outlined, tip: '编辑',
                       onTap: () => showItemEditor(context, it)),
                   // 重写一件：降低承诺压力，随时可以换。

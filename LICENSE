@@ -1,5 +1,5 @@
                    Start 软件 双许可协议（Dual License）
-                        版本 1.0，2026 年 9 月 22 日
+                        版本 2.0，2026 年 9 月 26 日
 
 版权所有 (C) 2026 王浩然。保留所有权利。
 
@@ -7,42 +7,46 @@
 许可中选择适用的一种。
 
 ========================================================================
-                     许可一：GNU GPLv3+ 许可证（开源使用）
+                许可一：GNU AGPLv3+ 许可证（开源使用）
 ========================================================================
 
-适用对象：愿意遵守 GNU 通用公共许可证第三版（GNU GPLv3）Copyleft
-条款的使用者，包括个人非商业使用，以及遵守 GPLv3 条款的商业使用。
-依 GPLv3，你可以自由使用、研究、修改和再分发本软件及基于本软件的
-衍生作品；但你分发的衍生作品必须继续以 GPLv3+ 开源，并向接收者
-提供完整源代码。声明如下：
+适用对象：愿意遵守 GNU Affero 通用公共许可证第三版（GNU AGPLv3）
+Copyleft 条款的使用者，包括个人非商业使用，以及遵守 AGPLv3 条款的
+商业使用。依 AGPLv3，你可以自由使用、研究、修改和再分发本软件及
+基于本软件的衍生作品；但你分发的衍生作品必须继续以 AGPLv3+ 开源，
+并向接收者提供完整源代码。与 GPLv3 不同，AGPLv3 第 13 条额外要求：
+即使不分发软件，只是将本软件（含修改版）部署在服务器上通过网络
+向用户提供交互服务，也必须向这些用户提供对应的完整源代码。
+声明如下：
 
 Start —— 把待办和念头拆成小步骤、一次只做好一件事的本地记事工具
 Copyright (C) 2026 王浩然（个人开发者）
 
 This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+GNU Affero General Public License for more details.
 
-You should have received a copy of the GNU General Public License
+You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-请到 COPYING 中查看 GNU 通用公共许可证第 3 版（GPLv3）全文。
+请到 COPYING 中查看 GNU Affero 通用公共许可证第 3 版（AGPLv3）全文。
 
 ========================================================================
                      许可二：商业使用许可（需书面授权）
 ========================================================================
 
 适用对象：希望以闭源或专有方式使用、分发、嵌入、再许可或二次开发
-本软件，无法或不愿遵守 GPLv3 Copyleft 开源条款的使用者。
+本软件（包括以网络服务形式提供而拒不公开源代码），无法或不愿遵守
+AGPLv3 Copyleft 开源条款的使用者。
 
-凡不符合 GPLv3 开源条款的商业用途，均须事先取得著作权人的书面授权，
-明确约定授权范围、期限、费用及其他条件。未获授权且不符合 GPLv3
+凡不符合 AGPLv3 开源条款的商业用途，均须事先取得著作权人的书面授权，
+明确约定授权范围、期限、费用及其他条件。未获授权且不符合 AGPLv3
 条款的使用均属侵权，著作权人保留追究法律责任的权利。
 
 申请商业授权，请联系：
@@ -59,4 +63,3 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
    不读取用户数据。
 
 3. 完整协议：本文件为双许可的完整协议文本。如有歧义，以中文版本为准。
-
