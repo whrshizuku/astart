@@ -131,7 +131,7 @@ Start 是作者首次独立开发的应用。由于开发经验不足、技术�
 
 ## 开源
 
-本项目以 **GPLv3** 开源（见 [LICENSE](LICENSE)）。欢迎 Issue 与 PR：https://gitee.com/dubwhr/astart/issues
+本项目采用**双许可**：开源使用遵循 **GPLv3+**（全文见 [COPYING](COPYING)，协议说明见 [LICENSE](LICENSE)），闭源商业使用需著作权人书面授权。欢迎 Issue 与 PR：https://gitee.com/dubwhr/astart/issues
 
 **本应用对个人非商业使用永久免费，商业使用需开发者的书面授权。**
 
