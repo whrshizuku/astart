@@ -29,7 +29,15 @@ class _SegmentScreenState extends State<SegmentScreen> {
   final FocusNode _inputFocus = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    // 撤销条让开底部输入条。
+    UndoHost.extraBottom.value = 72;
+  }
+
+  @override
   void dispose() {
+    UndoHost.extraBottom.value = 0;
     _ctl.dispose();
     _inputFocus.dispose();
     super.dispose();

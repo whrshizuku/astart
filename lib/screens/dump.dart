@@ -26,6 +26,8 @@ class _DumpScreenState extends State<DumpScreen> {
   @override
   void initState() {
     super.initState();
+    // 撤销条让开底部输入条。
+    UndoHost.extraBottom.value = 72;
     _ctl.text = widget.initial;
     _loadShare();
   }
@@ -41,6 +43,7 @@ class _DumpScreenState extends State<DumpScreen> {
 
   @override
   void dispose() {
+    UndoHost.extraBottom.value = 0;
     _ctl.dispose();
     _focus.dispose();
     super.dispose();

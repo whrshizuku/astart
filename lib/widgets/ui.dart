@@ -215,6 +215,10 @@ class UndoHost extends StatefulWidget {
   /// 已挂载的实例（全局唯一，挂在 MaterialApp.builder 顶层）。
   static _UndoHostState? _state;
 
+  /// 有底部输入条的页面（念头/捋一捋/小步骤）登记额外避让，撤销条让到输入条上方；
+  /// 页面 dispose 时归零。
+  static final ValueNotifier<double> extraBottom = ValueNotifier(0);
+
   /// 显示撤销条。返回后 6 秒过期（过期不执行 onExpire 的删除，由调用方在删除时先快照）。
   static void show(BuildContext context, String text, VoidCallback onUndo) {
     final state = _state ?? context.findAncestorStateOfType<_UndoHostState>();
@@ -229,7 +233,6 @@ class _UndoHostState extends State<UndoHost> {
   String? _text;
   VoidCallback? _onUndo;
   Timer? _timer;
-
   @override
   void initState() {
     super.initState();
@@ -270,10 +273,18 @@ class _UndoHostState extends State<UndoHost> {
       valueListenable: DragDockBus.active,
       builder: (_, dragging, __) {
         final visible = _text != null && !dragging;
-        return Positioned(
+        return ValueListenableBuilder<double>(
+          valueListenable: UndoHost.extraBottom,
+          builder: (_, extra, __) {
+            // 底栏胶囊 64 + 手势条 + 间距；有底部输入条的页面再让开输入条。
+            final bottom = 64 +
+                MediaQuery.viewPaddingOf(context).bottom +
+                S.md +
+                extra;
+            return Positioned(
       left: S.md,
       right: S.md,
-      bottom: 84,
+      bottom: bottom,
       child: IgnorePointer(
         ignoring: !visible,
         child: AnimatedSlide(
@@ -315,6 +326,8 @@ class _UndoHostState extends State<UndoHost> {
           ),
         ),
       ),
+          );
+          },
         );
       },
     );

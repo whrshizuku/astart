@@ -25,6 +25,8 @@ class _StepsScreenState extends State<StepsScreen> {
   @override
   void initState() {
     super.initState();
+    // 撤销条让开底部输入条（输入条 64 + 间距 8）。
+    UndoHost.extraBottom.value = 72;
     // 没有步骤时进来直接弹键盘写。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (StartStore.I.subtasksOf(widget.taskId).isEmpty) _inputFocus.requestFocus();
@@ -33,6 +35,7 @@ class _StepsScreenState extends State<StepsScreen> {
 
   @override
   void dispose() {
+    UndoHost.extraBottom.value = 0;
     _ctl.dispose();
     _inputFocus.dispose();
     super.dispose();
