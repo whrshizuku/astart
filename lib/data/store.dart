@@ -13,7 +13,7 @@ class StartStore extends ChangeNotifier {
   static final StartStore I = StartStore._();
 
   static const fileJson = 'start_items.json';
-  static const eulaVersion = 9;
+  static const eulaVersion = 10;
 
   final List<Item> items = [];
   int seq = 1;

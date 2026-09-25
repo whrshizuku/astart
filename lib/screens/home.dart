@@ -14,7 +14,7 @@ import 'settings.dart';
 /// 首页 = 今日（复刻老版 TodayScreen 的极简布局）。
 /// 顶栏：Start 字标 + 搜索 + 设置。
 /// 今日焦点 hero 占首屏最上方：无焦点=大标语+选一件胶囊；
-/// 有焦点=大字标题+主胶囊「拆成小步骤」+次操作图标。日程卡长按可拖上来设焦点。
+/// 有焦点=大字标题+主胶囊「只做它」（自动进小步骤页）+次操作图标。日程卡长按可拖上来设焦点。
 /// 其下大时钟 + 日期 + 一句鼓励。今天 = 已排期（含过期未完成，不责备）+ 手机日历，
 /// 纯文字列表；随手做 = 无时间任务，可拖动排序，长按进选择态。
 class HomeScreen extends StatefulWidget {
@@ -559,7 +559,7 @@ class _FocusHero extends StatelessWidget {
               const SizedBox(height: S.md),
               Row(
                 children: [
-                  // 主胶囊：拆成小步骤（事大先拆小，降低启动阻力）。
+                  // 主胶囊：只做它——点它自动进小步骤页，事大先拆小，降低启动阻力。
                   Pressable(
                     onTap: () {
                       Navigator.of(context, rootNavigator: true)
@@ -574,10 +574,10 @@ class _FocusHero extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.flare,
+                          const Icon(Icons.play_arrow,
                               size: 20, color: Colors.white),
                           const SizedBox(width: S.xxs),
-                          Text('拆成小步骤',
+                          Text('只做它',
                               style: TextStyle(
                                   fontSize: S.textMd,
                                   fontWeight: FontWeight.bold,
@@ -587,12 +587,12 @@ class _FocusHero extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  // 次操作：完成 / 编辑 / 重写，纯图标不抢戏。进专注统一走底栏专注页。
+                  // 次操作：完成 / 换一件 / 编辑，纯图标不抢戏。进专注统一走底栏专注页。
                   IconBtn(Icons.check, tip: '完成', onTap: () => _complete(context)),
+                  // 换一件：降低承诺压力，随时可以换。
+                  IconBtn(Icons.swap_horiz, tip: '换一件', onTap: onPick),
                   IconBtn(Icons.edit_outlined, tip: '编辑',
                       onTap: () => showItemEditor(context, it)),
-                  // 重写一件：降低承诺压力，随时可以换。
-                  IconBtn(Icons.swap_horiz, tip: '重写', onTap: onPick),
                 ],
               ),
             ] else
