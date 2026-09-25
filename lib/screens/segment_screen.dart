@@ -61,30 +61,6 @@ class _SegmentScreenState extends State<SegmentScreen> {
     }
   }
 
-  /// 写的内容先捋一捋拆词，挑中的词各成一条暂存。
-  Future<void> _bangInbox() async {
-    final raw = _ctl.text.trim();
-    if (raw.isEmpty || !mounted) return;
-    await showBigBang(
-      context,
-      raw,
-      confirmLabel: '拆成几条',
-      onDone: (kept) async {
-        final now = DateTime.now().millisecondsSinceEpoch;
-        for (var k = 0; k < kept.length; k++) {
-          await StartStore.I.put(
-            Item(kind: Item.kindInbox, title: kept[k], rank: -1, created: now + k),
-            touchRank: true,
-          );
-        }
-        if (mounted) {
-          setState(() => _ctl.clear());
-          _inputFocus.requestFocus();
-        }
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: StartStore.I,
@@ -170,7 +146,7 @@ class _SegmentScreenState extends State<SegmentScreen> {
                 focus: _inputFocus,
                 hint: '直接写下来；回车换行多记几条',
                 onCommit: _commitInbox,
-                onBang: _bangInbox,
+                showBang: false,
               ),
           ],
         ),
