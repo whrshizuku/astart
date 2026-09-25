@@ -186,7 +186,7 @@ class _LicenseScreenState extends State<LicenseScreen> {
       icon: Icons.gavel_outlined,
       title: '开源协议（AGPLv3）',
       children: [
-        const _P('本程序是自由软件，依据 GNU Affero 通用公共许可证第 3 版发布，你可以据此重新分发或修改它。即使不分发、仅通过网络提供本程序的交互服务，也必须向用户提供完整源代码。以下是许可证全文：'),
+        const _P('本程序是自由软件，依据 GNU Affero 通用公共许可证第 3 版发布，你可以据此重新分发或修改它。即使不分发、仅通过网络提供本程序的交互服务，也必须向用户提供完整源代码。自 v1.5.1 起采用 AGPLv3+，后续新版本沿用；v1.5 及更早版本仍为 GPLv3+，按各自发布时的协议执行。以下是许可证全文：'),
         const SizedBox(height: S.sm),
         SelectableText(_gpl, style: TextStyle(fontSize: 11, height: 1.4, color: c.inkSoft)),
         const SizedBox(height: S.xl),
