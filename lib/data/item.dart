@@ -1,3 +1,5 @@
+import '../l10n/i18n.dart';
+
 /// 一条记录：任务（可打勾、可排期、可拆步骤）或念头（随手速记）。
 /// JSON 字段与老版 start_items.json 完全一致。
 class Item {
@@ -47,7 +49,7 @@ class Item {
     if (t.isNotEmpty) return t;
     final n = note.trim();
     if (n.isNotEmpty) return n.split(RegExp(r'\r?\n')).first;
-    return '启序';
+    return Lang.appNameOf(Lang.current);
   }
 
   factory Item.fromJson(Map<String, dynamic> j) => Item(

@@ -3,9 +3,9 @@ import 'dart:math' show pi;
 import 'package:flutter/material.dart';
 
 import '../channels/native.dart';
-import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 开机动画页：图标淡入上浮 + 番茄红圆环描边转满 + 底部小字，末尾安静停顿。
 /// 默认 2.6 秒后回调进入主界面（协议门 / 首页）。纯图标，无按钮无干扰。
@@ -89,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen>
               const SizedBox(height: S.lg),
               FadeTransition(
                 opacity: word,
-                child: Text('Start',
+                child: Text(Lang.appNameOf(Lang.current),
                     style: TextStyle(
                         fontSize: S.textMd,
                         letterSpacing: 4,

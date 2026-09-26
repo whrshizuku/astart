@@ -4,6 +4,7 @@ import '../data/store.dart';
 import '../services/webdav.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 扩展 · 云备份（WebDAV）。默认关闭；仅在用户手动点备份/恢复时联网，
 /// 兼容坚果云、群晖、Nextcloud 等任意 WebDAV 服务。
@@ -29,11 +30,15 @@ class CloudSettingsScreen extends StatelessWidget {
                     IconBtn(Icons.arrow_back,
                         onTap: () => Navigator.pop(context)),
                     const SizedBox(width: S.xs),
-                    Text('云备份',
-                        style: TextStyle(
-                            fontSize: S.textXl,
-                            fontWeight: FontWeight.bold,
-                            color: c.ink)),
+                    Flexible(
+                      child: Text(tr('云备份'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: S.textXl,
+                              fontWeight: FontWeight.bold,
+                              color: c.ink)),
+                    ),
                   ],
                 ),
                 const SizedBox(height: S.sm),
@@ -43,7 +48,7 @@ class CloudSettingsScreen extends StatelessWidget {
                       Icon(Icons.cloud_outlined, size: 20, color: c.ink),
                       const SizedBox(width: S.sm),
                       Expanded(
-                        child: Text('启用 WebDAV 云备份',
+                        child: Text(tr('启用 WebDAV 云备份'),
                             style:
                                 TextStyle(fontSize: S.textMd, color: c.ink)),
                       ),
@@ -60,44 +65,43 @@ class CloudSettingsScreen extends StatelessWidget {
                   _CloudField(
                     icon: Icons.language,
                     value: WebDav.url,
-                    hint: '服务器地址，如 https://dav.jianguoyun.com/dav/backup',
+                    hint: tr('服务器地址，如 https://dav.jianguoyun.com/dav/backup'),
                     onSave: WebDav.setUrl,
                   ),
                   _CloudField(
                     icon: Icons.person_outline,
                     value: WebDav.user,
-                    hint: '账号',
+                    hint: tr('账号'),
                     onSave: WebDav.setUser,
                   ),
                   _CloudField(
                     icon: Icons.key,
                     value: WebDav.pass,
-                    hint: '密码 / 应用专用密码',
+                    hint: tr('密码 / 应用专用密码'),
                     obscure: true,
                     onSave: WebDav.setPass,
                   ),
                   const SizedBox(height: S.sm),
                   _ActionRow(
                     icon: Icons.wifi_tethering,
-                    title: '测试连接',
+                    title: tr('测试连接'),
                     onTap: () => _test(context),
                   ),
                   _ActionRow(
                     icon: Icons.cloud_upload_outlined,
-                    title: '立即备份',
+                    title: tr('立即备份'),
                     onTap: () => _backup(context),
                   ),
                   _ActionRow(
                     icon: Icons.cloud_download_outlined,
-                    title: '从云端恢复最新一份',
+                    title: tr('从云端恢复最新一份'),
                     danger: true,
                     onTap: () => _restore(context),
                   ),
                 ],
                 const SizedBox(height: S.md),
                 _Note(c,
-                    '备份内容为全量数据 JSON，文件名带时间戳，只上传到你自己填的服务器。'
-                    '恢复会覆盖本机全部内容，恢复后可在 6 秒内撤销。不开启、不点按钮就不会联网。'),
+                    tr('备份内容为全量数据 JSON，文件名带时间戳，只上传到你自己填的服务器。恢复会覆盖本机全部内容，恢复后可在 6 秒内撤销。不开启、不点按钮就不会联网。')),
               ],
             ),
           ),
@@ -109,47 +113,47 @@ class CloudSettingsScreen extends StatelessWidget {
   Future<void> _test(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     if (!WebDav.ready) {
-      messenger.showSnackBar(const SnackBar(content: Text('先把地址账号密码填全')));
+      messenger.showSnackBar(SnackBar(content: Text(tr('先把地址账号密码填全'))));
       return;
     }
     try {
       await WebDav.ping();
-      messenger.showSnackBar(const SnackBar(content: Text('连接正常')));
+      messenger.showSnackBar(SnackBar(content: Text(tr('连接正常'))));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('连不上：$e')));
+      messenger.showSnackBar(SnackBar(content: Text(tr('连不上：{0}', [e]))));
     }
   }
 
   Future<void> _backup(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     if (!WebDav.ready) {
-      messenger.showSnackBar(const SnackBar(content: Text('先把地址账号密码填全')));
+      messenger.showSnackBar(SnackBar(content: Text(tr('先把地址账号密码填全'))));
       return;
     }
     try {
       final name = await WebDav.backup();
-      messenger.showSnackBar(SnackBar(content: Text('已备份：$name')));
+      messenger.showSnackBar(SnackBar(content: Text(tr('已备份：{0}', [name]))));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('备份失败：$e')));
+      messenger.showSnackBar(SnackBar(content: Text(tr('备份失败：{0}', [e]))));
     }
   }
 
   Future<void> _restore(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     if (!WebDav.ready) {
-      messenger.showSnackBar(const SnackBar(content: Text('先把地址账号密码填全')));
+      messenger.showSnackBar(SnackBar(content: Text(tr('先把地址账号密码填全'))));
       return;
     }
     final c = ThemeTokens.of(context);
     final ok = await showStartDialog<bool>(
       context,
-      title: '用云端备份覆盖本机？',
+      title: tr('用云端备份覆盖本机？'),
       actions: (dctx) => [
         TextButton(
-            onPressed: () => Navigator.pop(dctx, false), child: const Text('取消')),
+            onPressed: () => Navigator.pop(dctx, false), child: Text(tr('取消'))),
         TextButton(
             onPressed: () => Navigator.pop(dctx, true),
-            child: Text('覆盖', style: TextStyle(color: c.accentDark))),
+            child: Text(tr('覆盖'), style: TextStyle(color: c.accentDark))),
       ],
     );
     if (ok != true || !context.mounted) return;
@@ -159,13 +163,13 @@ class CloudSettingsScreen extends StatelessWidget {
       final r = await StartStore.I.restoreJson(json);
       if (!context.mounted) return;
       if (r) {
-        UndoHost.show(context, '已从云端恢复',
+        UndoHost.show(context, tr('已从云端恢复'),
             () async => StartStore.I.restoreJson(snap));
       } else {
-        messenger.showSnackBar(const SnackBar(content: Text('备份文件内容不对，没恢复')));
+        messenger.showSnackBar(SnackBar(content: Text(tr('备份文件内容不对，没恢复'))));
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('恢复失败：$e')));
+      messenger.showSnackBar(SnackBar(content: Text(tr('恢复失败：{0}', [e]))));
     }
   }
 }
@@ -190,10 +194,14 @@ class _ActionRow extends StatelessWidget {
             children: [
               Icon(icon, size: 20, color: danger ? c.accentDark : c.ink),
               const SizedBox(width: S.sm),
-              Text(title,
-                  style: TextStyle(
-                      fontSize: S.textMd,
-                      color: danger ? c.accentDark : c.ink)),
+              Expanded(
+                child: Text(title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: S.textMd,
+                        color: danger ? c.accentDark : c.ink)),
+              ),
             ],
           ),
         ),
@@ -296,7 +304,7 @@ class _CloudField extends StatelessWidget {
                     color: ThemeTokens.of(ctx).accent,
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text('保存',
+                  child: Text(tr('保存'),
                       style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,

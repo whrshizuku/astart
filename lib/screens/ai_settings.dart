@@ -4,6 +4,7 @@ import '../ai/assist.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 扩展 · AI 助手配置。默认关闭；开启后可选用预设免费模型或自填任意
 /// OpenAI 兼容端点。仅在你主动点「AI 整理」时联网，发送内容只有那一段语音/文字。
@@ -29,11 +30,15 @@ class AiSettingsScreen extends StatelessWidget {
                     IconBtn(Icons.arrow_back,
                         onTap: () => Navigator.pop(context)),
                     const SizedBox(width: S.xs),
-                    Text('AI 助手',
-                        style: TextStyle(
-                            fontSize: S.textXl,
-                            fontWeight: FontWeight.bold,
-                            color: c.ink)),
+                    Flexible(
+                      child: Text(tr('AI 助手'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: S.textXl,
+                              fontWeight: FontWeight.bold,
+                              color: c.ink)),
+                    ),
                   ],
                 ),
                 const SizedBox(height: S.sm),
@@ -43,7 +48,7 @@ class AiSettingsScreen extends StatelessWidget {
                       Icon(Icons.auto_awesome, size: 20, color: c.ink),
                       const SizedBox(width: S.sm),
                       Expanded(
-                        child: Text('启用 AI 助手',
+                        child: Text(tr('启用 AI 助手'),
                             style:
                                 TextStyle(fontSize: S.textMd, color: c.ink)),
                       ),
@@ -56,9 +61,9 @@ class AiSettingsScreen extends StatelessWidget {
                   ),
                 ),
                 if (on) ...[
-                  _Label(c, '选择服务'),
+                  _Label(c, tr('选择服务')),
                   _Presets(),
-                  _Label(c, '接口配置'),
+                  _Label(c, tr('接口配置')),
                   _Field(
                     icon: Icons.link,
                     value: AiConfig.base,
@@ -68,7 +73,7 @@ class AiSettingsScreen extends StatelessWidget {
                   _Field(
                     icon: Icons.memory,
                     value: AiConfig.model,
-                    hint: '模型名，如 glm-4-flash',
+                    hint: tr('模型名，如 glm-4-flash'),
                     onSave: AiConfig.setModel,
                   ),
                   _Field(
@@ -83,8 +88,7 @@ class AiSettingsScreen extends StatelessWidget {
                 ],
                 const SizedBox(height: S.md),
                 _Note(c,
-                    'AI 只在你主动点「AI 整理」时工作：把一段话拆成「日程 / 随手做 / 念头」并自动归类。'
-                    '发送的仅为当时那段文字，配置与数据都只存在本机，开发者不收集任何信息。'),
+                    tr('AI 只在你主动点「AI 整理」时工作：把一段话拆成「日程 / 随手做 / 念头」并自动归类。发送的仅为当时那段文字，配置与数据都只存在本机，开发者不收集任何信息。')),
               ],
             ),
           ),
@@ -167,9 +171,9 @@ class _TestButtonState extends State<_TestButton> {
               });
               try {
                 await AiClient.ping();
-                if (mounted) setState(() => _ok = '连接正常');
+                if (mounted) setState(() => _ok = tr('连接正常'));
               } catch (e) {
-                if (mounted) setState(() => _ok = '连不上：$e');
+                if (mounted) setState(() => _ok = tr('连不上：{0}', [e]));
               } finally {
                 if (mounted) setState(() => _busy = false);
               }
@@ -188,10 +192,15 @@ class _TestButtonState extends State<_TestButton> {
             else
               Icon(Icons.wifi_tethering, size: 20, color: c.ink),
             const SizedBox(width: S.sm),
-            Text(_busy ? '正在测试…' : (_ok ?? '测试连接'),
-                style: TextStyle(
-                    fontSize: S.textMd,
-                    color: !AiConfig.ready && !_busy ? c.inkSoft : c.ink)),
+            Flexible(
+              child: Text(_busy ? tr('正在测试…') : (_ok ?? tr('测试连接')),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: S.textMd,
+                      color: !AiConfig.ready && !_busy ? c.inkSoft : c.ink)),
+            ),
           ],
         ),
       ),
@@ -297,7 +306,7 @@ class _Field extends StatelessWidget {
                     color: ThemeTokens.of(ctx).accent,
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text('保存',
+                  child: Text(tr('保存'),
                       style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,

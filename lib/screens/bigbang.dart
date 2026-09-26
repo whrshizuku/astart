@@ -5,14 +5,15 @@ import '../data/item.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 捋一捋 · 大爆炸拆词浮层。
 /// 词芯片默认全选（番茄红底），单击取消选择，双击删词，铅笔编辑，长按拖动换位。
 class BigBangSheet extends StatefulWidget {
   final String text;
-  final String confirmLabel;
+  final String? confirmLabel;
   final ValueChanged<List<String>> onDone;
-  const BigBangSheet({super.key, required this.text, required this.onDone, this.confirmLabel = '就这样'});
+  const BigBangSheet({super.key, required this.text, required this.onDone, this.confirmLabel});
 
   @override
   State<BigBangSheet> createState() => _BigBangSheetState();
@@ -47,7 +48,7 @@ class _BigBangSheetState extends State<BigBangSheet> {
       builder: (dctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
-        title: Text('改这个词',
+        title: Text(tr('改这个词'),
             style: TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: ctl,
@@ -58,10 +59,10 @@ class _BigBangSheetState extends State<BigBangSheet> {
         actions: [
           // 必须用弹框自身的 dctx：浮层挂在 body 内嵌导航器、弹框挂在根导航器，
           // 用浮层 context 会误关拆词浮层、弹框反而卡住没反应。
-          TextButton(onPressed: () => Navigator.pop(dctx), child: Text('算了', style: TextStyle(color: c.inkSoft))),
+          TextButton(onPressed: () => Navigator.pop(dctx), child: Text(tr('算了'), style: TextStyle(color: c.inkSoft))),
           TextButton(
             onPressed: () => Navigator.pop(dctx, ctl.text.trim()),
-            child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
+            child: Text(tr('好'), style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -87,20 +88,20 @@ class _BigBangSheetState extends State<BigBangSheet> {
       builder: (dctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
-        title: Text('加一步',
+        title: Text(tr('加一步'),
             style: TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: ctl,
           autofocus: true,
           style: TextStyle(fontSize: S.textLg, color: c.ink),
           cursorColor: c.accent,
-          decoration: InputDecoration(hintText: '写清楚这一步做什么', hintStyle: TextStyle(color: c.inkSoft)),
+          decoration: InputDecoration(hintText: tr('写清楚这一步做什么'), hintStyle: TextStyle(color: c.inkSoft)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dctx), child: Text('算了', style: TextStyle(color: c.inkSoft))),
+          TextButton(onPressed: () => Navigator.pop(dctx), child: Text(tr('算了'), style: TextStyle(color: c.inkSoft))),
           TextButton(
             onPressed: () => Navigator.pop(dctx, ctl.text.trim()),
-            child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
+            child: Text(tr('好'), style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -124,12 +125,12 @@ class _BigBangSheetState extends State<BigBangSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Center(
-            child: Text('捋一捋',
+            child: Text(tr('捋一捋'),
                 style: TextStyle(fontSize: S.textLg, fontWeight: FontWeight.bold, color: c.ink)),
           ),
           const SizedBox(height: S.xs),
           Center(
-            child: Text('点一下取消选中，双击删掉，长按改词，下面可手动补一步',
+            child: Text(tr('点一下取消选中，双击删掉，长按改词，下面可手动补一步'),
                 style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
           ),
           const SizedBox(height: S.md),
@@ -141,7 +142,7 @@ class _BigBangSheetState extends State<BigBangSheet> {
           else if (_words.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: S.lg),
-              child: Center(child: Text('没拆出词，直接在下面手动加', style: TextStyle(color: c.inkSoft))),
+              child: Center(child: Text(tr('没拆出词，直接在下面手动加'), style: TextStyle(color: c.inkSoft))),
             )
           else
             Flexible(
@@ -189,7 +190,7 @@ class _BigBangSheetState extends State<BigBangSheet> {
                   borderRadius: BorderRadius.circular(S.radius),
                   border: Border.all(color: c.line),
                 ),
-                child: Text('手动加一步',
+                child: Text(tr('手动加一步'),
                     style: TextStyle(color: c.inkSoft, fontSize: S.textMd, fontWeight: FontWeight.bold)),
               ),
             ),
@@ -210,7 +211,8 @@ class _BigBangSheetState extends State<BigBangSheet> {
                 height: 48,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(S.radius)),
-                child: Text('${widget.confirmLabel}（已选 ${_picked.length}/${_words.length}）',
+                child: Text(tr('{0}（已选 {1}/{2}）',
+                    [widget.confirmLabel ?? tr('就这样'), _picked.length, _words.length]),
                     style: const TextStyle(
                         color: Colors.white, fontSize: S.textMd, fontWeight: FontWeight.bold)),
               ),
@@ -295,7 +297,7 @@ Future<void> showBigBang(
   BuildContext context,
   String text, {
   required ValueChanged<List<String>> onDone,
-  String confirmLabel = '就这样',
+  String? confirmLabel,
 }) {
   return showStartSheet(
     context,
@@ -334,12 +336,12 @@ Future<void> showBigBangFromInput(BuildContext context, {String initial = ''}) a
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('捋一捋',
+          Text(tr('捋一捋'),
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: S.textLg, fontWeight: FontWeight.bold, color: ThemeTokens.of(context).ink)),
           const SizedBox(height: S.xs),
-          Text('把一段话粘进来，炸成词，挑着留下',
+          Text(tr('把一段话粘进来，拆成词，挑着留下'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: S.textSm, color: ThemeTokens.of(context).inkSoft)),
           const SizedBox(height: S.md),
@@ -350,7 +352,7 @@ Future<void> showBigBangFromInput(BuildContext context, {String initial = ''}) a
             maxLines: 6,
             style: TextStyle(fontSize: S.textLg, color: ThemeTokens.of(context).ink),
             decoration: InputDecoration(
-              hintText: '想拆开的话…',
+              hintText: tr('想拆开的话…'),
               hintStyle: TextStyle(color: ThemeTokens.of(context).inkSoft),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(S.radius),
@@ -367,7 +369,7 @@ Future<void> showBigBangFromInput(BuildContext context, {String initial = ''}) a
               decoration: BoxDecoration(
                   color: ThemeTokens.of(context).accent,
                   borderRadius: BorderRadius.circular(S.radius)),
-              child: const Text('炸开',
+              child: Text(tr('就这样'),
                   style: TextStyle(color: Colors.white, fontSize: S.textMd, fontWeight: FontWeight.bold)),
             ),
           ),
@@ -377,7 +379,7 @@ Future<void> showBigBangFromInput(BuildContext context, {String initial = ''}) a
   );
   ctl.dispose();
   if (text == null || text.isEmpty || !context.mounted) return;
-  await showBigBang(context, text, confirmLabel: '拆成念头', onDone: (kept) async {
+  await showBigBang(context, text, confirmLabel: tr('拆成念头'), onDone: (kept) async {
     if (kept.isEmpty) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     final added = <int>[];
@@ -387,7 +389,7 @@ Future<void> showBigBangFromInput(BuildContext context, {String initial = ''}) a
       added.add(it.id);
     }
     if (context.mounted) {
-      UndoHost.show(context, '炸成 ${kept.length} 条念头', () async {
+      UndoHost.show(context, tr('拆成 {0} 条念头', [kept.length]), () async {
         for (final id in added) {
           StartStore.I.delete(id, cascade: false);
         }

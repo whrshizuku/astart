@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'ai/assist.dart';
-import 'data/item.dart';
 import 'data/store.dart';
 import 'channels/native.dart';
 import 'screens/dump.dart';
@@ -20,6 +19,7 @@ import 'theme/tokens.dart';
 import 'utils/update_checker.dart';
 import 'widgets/ui.dart';
 import 'widgets/voice_sheet.dart';
+import 'l10n/i18n.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +32,7 @@ Future<void> main() async {
     systemNavigationBarContrastEnforced: false,
   ));
   await StartStore.I.init();
+  Lang.current = Lang.resolve();
   runApp(const StartApp());
 }
 
@@ -49,6 +50,9 @@ class _StartAppState extends State<StartApp> {
   @override
   void initState() {
     super.initState();
+    // 红区必须在根 Overlay 内且早于拖拽浮影插入：浮影（rootOverlay）后插入，
+    // 层级自然在红区之上，整卡不再被红区遮住。
+    WidgetsBinding.instance.addPostFrameCallback((_) => GlobalDragDock.install());
     // 启动后静默检查更新，有新版自动提醒。
     Future.delayed(const Duration(seconds: 2), _autoUpdateCheck);
   }
@@ -64,21 +68,21 @@ class _StartAppState extends State<StartApp> {
       builder: (_) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
-        title: Text('发现新版本 v${u.version}',
+        title: Text(tr('发现新版本 v{0}', [u.version]),
             style: TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
-        content: Text('去仓库下载最新安装包',
+        content: Text(tr('去仓库下载最新安装包'),
             style: TextStyle(color: c.inkSoft, fontSize: S.textMd)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('忽略', style: TextStyle(color: c.inkSoft)),
+            child: Text(tr('忽略'), style: TextStyle(color: c.inkSoft)),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               Native.openUrl(u.url);
             },
-            child: Text('下载', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
+            child: Text(tr('下载'), style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -96,6 +100,8 @@ class _StartAppState extends State<StartApp> {
       listenable: StartStore.I,
       builder: (context, _) {
         final s = StartStore.I;
+        // 语言偏好变化（setPref 会 notify）后整树重建，重算生效语言。
+        Lang.current = Lang.resolve();
         final darkMode = s.prefInt('dark_mode', 0);
         final themeMode = switch (darkMode) {
           1 => ThemeMode.dark,
@@ -112,7 +118,7 @@ class _StartAppState extends State<StartApp> {
         return ThemeTokens(
           c: c,
           child: MaterialApp(
-            title: '启序',
+            title: Lang.appNameOf(Lang.current),
             debugShowCheckedModeBanner: false,
             navigatorKey: StartApp.navigatorKey,
             scaffoldMessengerKey: StartApp.messengerKey,
@@ -153,7 +159,6 @@ class _StartAppState extends State<StartApp> {
                             child: nav!,
                           ),
                           const UndoHost(),
-                          const _GlobalDragDock(),
                         ],
                       ),
                     );
@@ -183,10 +188,24 @@ class _StartAppState extends State<StartApp> {
   }
 }
 
-/// 全局拖拽落点底座：拖到「移到这删除」= 删除（可撤销）；
-/// 拖到「开成导图」= 以该条目标题为根新建思维导图并打开（原条目保留不动）。
-class _GlobalDragDock extends StatelessWidget {
-  const _GlobalDragDock();
+/// 全局拖拽落点底座：以 OverlayEntry 常驻在根 Navigator 的 Overlay 中。
+/// 启动后即插入（早于任何拖拽浮影）；LongPressDraggable 的 rootOverlay 浮影
+/// 在拖拽开始时才插入，层级天然在红区之上，整卡不会再被红区遮住。
+class GlobalDragDock {
+  GlobalDragDock._();
+
+  static OverlayEntry? _entry;
+
+  static void install() {
+    if (_entry != null) return;
+    final nav = StartApp.navigatorKey.currentState;
+    if (nav == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => install());
+      return;
+    }
+    _entry = OverlayEntry(builder: (_) => DragDock(onTrash: _toTrash));
+    nav.overlay!.insert(_entry!);
+  }
 
   /// 等拖拽彻底结束（红区完全收起）后再弹撤销条，避免与红区同屏两条并存。
   static void _showUndoWhenIdle(String text, Future<void> Function() onUndo) {
@@ -213,16 +232,13 @@ class _GlobalDragDock extends StatelessWidget {
     DragDockBus.pendingIds = null;
     if (ids != null && ids.length > 1) {
       final snap = await s.deleteAll(ids);
-      _showUndoWhenIdle('删了 ${ids.length} 条', () async => s.restoreJson(snap));
+      _showUndoWhenIdle(tr('删了 {0} 条', [ids.length]), () async => s.restoreJson(snap));
       return;
     }
     if (s.byId(id) == null) return;
     final removed = s.delete(id, cascade: true);
-    _showUndoWhenIdle('已删除', () async => s.restore(removed));
+    _showUndoWhenIdle(tr('已删除'), () async => s.restore(removed));
   }
-
-  @override
-  Widget build(BuildContext context) => const DragDock(onTrash: _toTrash);
 }
 
 /// 启动门：先播放开机动画，结束后进协议门与主界面。
@@ -355,7 +371,7 @@ class _RootState extends State<Root> {
                     strokeWidth: 2.5, color: ThemeTokens.of(ctx).accent),
               ),
               const SizedBox(height: S.sm),
-              Text('AI 正在整理…',
+              Text(tr('AI 正在整理…'),
                   style: TextStyle(
                       fontSize: S.textSm, color: ThemeTokens.of(ctx).inkSoft)),
             ],
@@ -369,19 +385,19 @@ class _RootState extends State<Root> {
       if (mctx != null && mctx.mounted) Navigator.of(mctx, rootNavigator: true).pop();
       if (result.count == 0) {
         StartApp.messengerKey.currentState
-            ?.showSnackBar(const SnackBar(content: Text('没听出要做的事，换个说法试试')));
+            ?.showSnackBar(SnackBar(content: Text(tr('没听出要做的事，换个说法试试'))));
         return;
       }
       final uctx = StartApp.navigatorKey.currentContext;
       if (uctx != null && uctx.mounted) {
-        UndoHost.show(uctx, 'AI 整理了 ${result.count} 条',
+        UndoHost.show(uctx, tr('AI 整理了 {0} 条', [result.count]),
             () async => StartStore.I.restoreJson(result.snapshot));
       }
     } catch (e) {
       final mctx = StartApp.navigatorKey.currentContext;
       if (mctx != null && mctx.mounted) Navigator.of(mctx, rootNavigator: true).pop();
       StartApp.messengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('AI 没连上：$e')),
+        SnackBar(content: Text(tr('AI 没连上：{0}', [e]))),
       );
     }
   }

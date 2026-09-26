@@ -6,6 +6,7 @@ import '../channels/native.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 长按「动手吧」唤起的语音面板。默认系统离线引擎（不联网）；
 /// 用户在设置开启「在线语音」后允许在线识别。
@@ -102,7 +103,7 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
           // 原生侧给的中文人话提示（无引擎 / 麦克风权限）。
           setState(() => _error = text);
         } else {
-          setState(() => _error = '识别出了点问题（$code），请重试');
+          setState(() => _error = tr('识别出了点问题（{0}），请重试', [code]));
         }
         break;
     }
@@ -168,13 +169,18 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
                 children: [
                   _PulsingMic(pulse: _pulse, color: c.accent),
                   const SizedBox(width: S.sm),
-                  Text(_error.isEmpty ? '正在听，说完自动续听' : '没在听',
-                      style: TextStyle(
-                          fontSize: S.textMd,
-                          fontWeight: FontWeight.bold,
-                          color: _error.isEmpty ? c.ink : c.accentDark)),
+                  Flexible(
+                    child: Text(_error.isEmpty ? tr('正在听，说完自动续听') : tr('没在听'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: S.textMd,
+                            fontWeight: FontWeight.bold,
+                            color: _error.isEmpty ? c.ink : c.accentDark)),
+                  ),
                   const SizedBox(width: S.sm),
-                  Text(online ? '在线' : '离线',
+                  Text(online ? tr('在线') : tr('离线'),
                       style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
                 ],
               ),
@@ -226,7 +232,7 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
                           color: c.cardAlt,
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Text('取消',
+                        child: Text(tr('取消'),
                             style: TextStyle(
                                 fontSize: S.textMd,
                                 fontWeight: FontWeight.bold,
@@ -247,7 +253,7 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(color: c.accent, width: 1.5),
                           ),
-                          child: Text('AI 整理',
+                          child: Text(tr('AI 整理'),
                               style: TextStyle(
                                   fontSize: S.textMd,
                                   fontWeight: FontWeight.bold,
@@ -267,7 +273,7 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
                           color: c.accent,
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: const Text('说完了',
+                        child: Text(tr('说完了'),
                             style: TextStyle(
                                 fontSize: S.textMd,
                                 fontWeight: FontWeight.bold,

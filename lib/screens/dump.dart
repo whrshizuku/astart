@@ -6,6 +6,7 @@ import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
 import 'segment_screen.dart';
+import '../l10n/i18n.dart';
 
 /// 动手吧 = 纯速记页，只负责「丢」。
 /// 底部输入条一股脑写下来，点倒进来按行和句末标点（。！？；…）拆成多条
@@ -75,12 +76,12 @@ class _DumpScreenState extends State<DumpScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            PageHead('动手吧', onBack: () => Navigator.pop(context)),
+            PageHead(tr('动手吧'), onBack: () => Navigator.pop(context)),
             const Expanded(child: _DumpGuide()),
             QuickInputBar(
               controller: _ctl,
               focus: _focus,
-              hint: '想到什么一股脑写下来',
+              hint: tr('想到什么一股脑写下来'),
               onCommit: _dump,
               onBang: _dump,
               showBang: false,
@@ -102,10 +103,10 @@ class _DumpGuide extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
-    const steps = [
-      (Icons.edit_note, '丢', '想到什么全写下来，不用想分类'),
-      (Icons.south, '倒进来', '按行和句末标点自动拆成几条'),
-      (Icons.alt_route, '捋一捋', '逐条分到日程或随手做'),
+    final steps = [
+      (Icons.edit_note, tr('丢'), tr('想到什么全写下来，不用想分类')),
+      (Icons.south, tr('倒进来'), tr('按行和句末标点自动拆成几条')),
+      (Icons.alt_route, tr('捋一捋'), tr('逐条分到日程或随手做')),
     ];
     return Center(
       child: Padding(
@@ -124,9 +125,13 @@ class _DumpGuide extends StatelessWidget {
                   children: [
                     Icon(steps[i].$1, size: 22, color: c.accent),
                     const SizedBox(width: S.sm),
-                    Text(steps[i].$2,
-                        style: TextStyle(
-                            fontSize: S.textMd, fontWeight: FontWeight.bold, color: c.ink)),
+                    Flexible(
+                      child: Text(steps[i].$2,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: S.textMd, fontWeight: FontWeight.bold, color: c.ink)),
+                    ),
                     const SizedBox(width: S.sm),
                     Expanded(
                       child: Text(steps[i].$3,

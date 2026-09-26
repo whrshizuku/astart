@@ -46,6 +46,10 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingExportJson: String? = null
 
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(AppLocale.wrap(base))
+    }
+
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
         val m = engine.dartExecutor.binaryMessenger
@@ -265,6 +269,10 @@ class MainActivity : FlutterActivity() {
                     if (call.argument<Boolean>("on") == true) startOngoing()
                     else (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                         .cancel(ReminderAlarm.ONGOING_ID)
+                    result.success(null)
+                }
+                "setAppLocale" -> {
+                    AppLocale.apply(this, call.argument<String>("tag") ?: "")
                     result.success(null)
                 }
                 "calendarToday" -> {
@@ -491,14 +499,14 @@ class MainActivity : FlutterActivity() {
     private fun startOngoing() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
-            NotificationChannel(ReminderAlarm.CHANNEL_ONGOING, "常驻守护", NotificationManager.IMPORTANCE_MIN))
+            NotificationChannel(ReminderAlarm.CHANNEL_ONGOING, getString(R.string.ongoing_channel), NotificationManager.IMPORTANCE_MIN))
         val pi = PendingIntent.getActivity(this, 0,
             packageManager.getLaunchIntentForPackage(packageName),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         nm.notify(ReminderAlarm.ONGOING_ID, Notification.Builder(this, ReminderAlarm.CHANNEL_ONGOING)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Start")
-            .setContentText("今日待办守护中")
+            .setContentText(getString(R.string.ongoing_text))
             .setOngoing(true)
             .setContentIntent(pi)
             .build())
@@ -599,7 +607,7 @@ class VoiceChannel(private val ctx: Context, messenger: io.flutter.plugin.common
             val act = ctx as? MainActivity
             act?.let {
                 ActivityCompat.requestPermissions(it, arrayOf(Manifest.permission.RECORD_AUDIO), 200)
-                sink?.success(mapOf("type" to "error", "text" to "需要麦克风权限"))
+                sink?.success(mapOf("type" to "error", "text" to ctx.getString(R.string.voice_no_mic)))
                 return
             }
         }
@@ -639,7 +647,7 @@ class VoiceChannel(private val ctx: Context, messenger: io.flutter.plugin.common
         }
         sr?.startListening(intent)
         } catch (e: Exception) {
-            sink?.success(mapOf("type" to "error", "text" to "本机无可用语音引擎，请在系统设置安装离线语音包"))
+            sink?.success(mapOf("type" to "error", "text" to ctx.getString(R.string.voice_no_engine)))
         }
     }
 

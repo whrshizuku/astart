@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">启序</string>
+    <string name="channel_notify">提醒</string>
+    <string name="ongoing_channel">常驻守护</string>
+    <string name="ongoing_text">今日待办守护中</string>
+    <string name="reminder_due">到点了</string>
+    <string name="voice_no_mic">需要麦克风权限</string>
+    <string name="voice_no_engine">本机无可用语音引擎，请在系统设置安装离线语音包</string>
+</resources>

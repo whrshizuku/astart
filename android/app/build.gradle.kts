@@ -24,10 +24,10 @@ android {
 
     defaultConfig {
         applicationId = "com.ndstart.app"
-        minSdk = 26
+        minSdk = 29
         targetSdk = 34
-        versionCode = 19
-        versionName = "2.1"
+        versionCode = 20
+        versionName = "2.2"
     }
 
     signingConfigs {

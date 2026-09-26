@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../data/store.dart';
+import '../l10n/i18n.dart';
 
 /// WebDAV 云备份：兼容坚果云、群晖、Nextcloud 等任意 WebDAV 服务。
 /// 配置仅存本机 start_prefs；功能默认关闭，开启后仅在用户手动点备份/恢复时联网，
@@ -103,7 +104,7 @@ class WebDav {
   /// 下载最新一份备份内容。
   static Future<String> fetchLatest() async {
     final names = await list();
-    if (names.isEmpty) throw Exception('云端没有备份');
+    if (names.isEmpty) throw Exception(tr('云端没有备份'));
     final resp = await http
         .get(_uri(names.last), headers: _headers)
         .timeout(const Duration(seconds: 30));

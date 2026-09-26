@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../data/store.dart';
 import '../theme/tokens.dart';
+import '../l10n/i18n.dart';
 
 /// 极简按压反馈：按压缩放 0.97 + 触感（可在设置关闭）。
 class Pressable extends StatefulWidget {
@@ -230,7 +231,7 @@ class DraggableLine extends StatelessWidget {
                       color: c.accent,
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: Text('$batch 条',
+                    child: Text(tr('{0} 条', [batch]),
                         style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -373,7 +374,7 @@ class _UndoHostState extends State<UndoHost> {
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: S.xs, vertical: S.xs),
-                      child: Text('撤销',
+                      child: Text(tr('撤销'),
                           style: TextStyle(
                               color: c.accent, fontSize: S.textMd, fontWeight: FontWeight.bold)),
                     ),
@@ -523,7 +524,7 @@ class QuickInputBar extends StatelessWidget {
               return Row(
                 children: [
                   if (showBang)
-                    IconBtn(Icons.new_releases_outlined, tip: '捋一捋拆词',
+                    IconBtn(Icons.new_releases_outlined, tip: tr('捋一捋拆词'),
                         onTap: has ? onBang : focus.requestFocus),
                   Pressable(
                     onTap: has ? onCommit : null,
@@ -632,17 +633,29 @@ class PageHead extends StatelessWidget {
             IconBtn(Icons.arrow_back, onTap: onBack, color: c.ink),
             const SizedBox(width: S.xs),
           ],
-          Text(title,
-              style: TextStyle(
-                  fontSize: S.textXl, fontWeight: FontWeight.bold, color: c.ink)),
-          if (count >= 0) ...[
-            const SizedBox(width: S.xs),
-            Text('$count',
-                style: TextStyle(
-                    fontSize: S.textSm,
-                    color: c.inkSoft,
-                    fontFeatures: const [FontFeature.tabularFigures()])),
-          ],
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: S.textXl,
+                          fontWeight: FontWeight.bold,
+                          color: c.ink)),
+                ),
+                if (count >= 0) ...[
+                  const SizedBox(width: S.xs),
+                  Text('$count',
+                      style: TextStyle(
+                          fontSize: S.textSm,
+                          color: c.inkSoft,
+                          fontFeatures: const [FontFeature.tabularFigures()])),
+                ],
+              ],
+            ),
+          ),
           const Spacer(),
           ...actions,
         ],
@@ -756,7 +769,7 @@ class _TimePickerSheetState extends State<_TimePickerSheet> {
                           color: c.cardAlt,
                           borderRadius: BorderRadius.circular(999)),
                       child: Center(
-                          child: Text('取消',
+                          child: Text(tr('取消'),
                               style: TextStyle(
                                   fontSize: S.textMd, color: c.ink))),
                     ),
@@ -773,7 +786,7 @@ class _TimePickerSheetState extends State<_TimePickerSheet> {
                           color: c.accent,
                           borderRadius: BorderRadius.circular(999)),
                       child: Center(
-                          child: Text('确认',
+                          child: Text(tr('确认'),
                               style: TextStyle(
                                   fontSize: S.textMd,
                                   fontWeight: FontWeight.bold,
@@ -914,15 +927,15 @@ class _DatePickerSheetState extends State<_DatePickerSheet> {
               children: [
                 Expanded(child: _wheel(_yc, _yearCount, _y - _yearBase,
                     (v) => setState(() { _y = _yearBase + v; _clampDay(); }),
-                    (i) => '${_yearBase + i} 年')),
+                    (i) => tr('{0} 年', [_yearBase + i]))),
                 const SizedBox(width: S.xs),
                 Expanded(child: _wheel(_mc, _monthCount, _mo - 1,
                     (v) => setState(() { _mo = v + 1; _clampDay(); }),
-                    (i) => '${i + 1} 月')),
+                    (i) => tr('{0} 月', [i + 1]))),
                 const SizedBox(width: S.xs),
                 Expanded(child: _wheel(_dc, _daysInMonth, _d - 1,
                     (v) => setState(() => _d = v + 1),
-                    (i) => '${i + 1} 日')),
+                    (i) => tr('{0} 日', [i + 1]))),
               ],
             ),
             const SizedBox(height: S.md),
@@ -937,7 +950,7 @@ class _DatePickerSheetState extends State<_DatePickerSheet> {
                           color: c.cardAlt,
                           borderRadius: BorderRadius.circular(999)),
                       child: Center(
-                          child: Text('取消',
+                          child: Text(tr('取消'),
                               style: TextStyle(
                                   fontSize: S.textMd, color: c.ink))),
                     ),
@@ -953,7 +966,7 @@ class _DatePickerSheetState extends State<_DatePickerSheet> {
                           color: c.accent,
                           borderRadius: BorderRadius.circular(999)),
                       child: Center(
-                          child: Text('确认',
+                          child: Text(tr('确认'),
                               style: TextStyle(
                                   fontSize: S.textMd,
                                   fontWeight: FontWeight.bold,

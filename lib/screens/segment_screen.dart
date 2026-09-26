@@ -7,6 +7,7 @@ import '../widgets/editor.dart';
 import '../widgets/ui.dart';
 import 'bigbang.dart';
 import 'mindmap.dart';
+import '../l10n/i18n.dart';
 
 /// 捋一捋 = 暂存条目的分类与拆词工坊，也支持「开始」的速记逻辑。
 /// 底部常驻输入条：写下来直接按行 / 句末标点拆成多条暂存，⑂ 可先拆词再存。
@@ -77,21 +78,21 @@ class _SegmentScreenState extends State<SegmentScreen> {
         child: Column(
           children: [
             PageHead(
-              '捋一捋',
+              tr('捋一捋'),
               count: list.length,
               onBack: () => Navigator.pop(context),
               actions: _selecting
                   ? [
-                      IconBtn(Icons.select_all_outlined, tip: '全选', onTap: () {
+                      IconBtn(Icons.select_all_outlined, tip: tr('全选'), onTap: () {
                         setState(() {
                           _selected.length == list.length
                               ? _selected.clear()
                               : _selected.addAll(list.map((e) => e.id));
                         });
                       }),
-                      IconBtn(Icons.checklist_outlined, tip: '全变随手做',
+                      IconBtn(Icons.checklist_outlined, tip: tr('全变随手做'),
                           onTap: () => _batchClassify(Item.kindTask, dueTime: 0)),
-                      IconBtn(Icons.close, tip: '退出选择', onTap: () {
+                      IconBtn(Icons.close, tip: tr('退出选择'), onTap: () {
                         setState(() {
                           _selecting = false;
                           _selected.clear();
@@ -99,10 +100,10 @@ class _SegmentScreenState extends State<SegmentScreen> {
                       }),
                     ]
                   : [
-                      IconBtn(Icons.account_tree_outlined, tip: '导图', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MindMapIndexScreen()))),
-                      IconBtn(Icons.add, tip: '新建', onTap: _newOne),
+                      IconBtn(Icons.account_tree_outlined, tip: tr('导图'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MindMapIndexScreen()))),
+                      IconBtn(Icons.add, tip: tr('新建'), onTap: _newOne),
                       // 多选入口在原垃圾桶位：选中后长按任意一条拖到底部桶整批删。
-                      IconBtn(Icons.playlist_add_check, tip: '多选', onTap: () {
+                      IconBtn(Icons.playlist_add_check, tip: tr('多选'), onTap: () {
                         if (list.isNotEmpty) setState(() => _selecting = true);
                       }),
                     ],
@@ -111,7 +112,7 @@ class _SegmentScreenState extends State<SegmentScreen> {
               child: list.isEmpty
                   ? EmptyView(
                       icon: Icons.alt_route,
-                      text: '在下面写点什么，自动拆成几条再捋',
+                      text: tr('在下面写点什么，自动拆成几条再捋'),
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(S.md, 0, S.md, S.sm),
@@ -150,7 +151,7 @@ class _SegmentScreenState extends State<SegmentScreen> {
               QuickInputBar(
                 controller: _ctl,
                 focus: _inputFocus,
-                hint: '直接写下来；回车换行多记几条',
+                hint: tr('直接写下来；回车换行多记几条'),
                 onCommit: _commitInbox,
                 showBang: false,
               ),
@@ -178,7 +179,7 @@ class _SegmentScreenState extends State<SegmentScreen> {
       _selected.clear();
     });
     if (!mounted) return;
-    UndoHost.show(context, '已分类', () async => s.restoreJson(snap));
+    UndoHost.show(context, tr('已分类'), () async => s.restoreJson(snap));
   }
 
   /// 新建一条暂存（根导航弹层，盖住底栏）。
@@ -230,7 +231,7 @@ class _InboxCard extends StatelessWidget {
 
   /// 捋一捋：大爆炸拆词，选中词各成一条新暂存，原条删除。
   Future<void> _split(BuildContext context) async {
-    await showBigBang(context, it.title, confirmLabel: '拆成几条', onDone: (kept) async {
+    await showBigBang(context, it.title, confirmLabel: tr('拆成几条'), onDone: (kept) async {
       if (kept.isEmpty) return;
       final now = DateTime.now().millisecondsSinceEpoch;
       for (var k = 0; k < kept.length; k++) {
@@ -242,7 +243,7 @@ class _InboxCard extends StatelessWidget {
       final removed = StartStore.I.delete(it.id, cascade: false);
       onChange();
       if (context.mounted) {
-        UndoHost.show(context, '拆成 ${kept.length} 条', () async {
+        UndoHost.show(context, tr('拆成 {0} 条', [kept.length]), () async {
           await StartStore.I.restore(removed);
         });
       }
@@ -286,14 +287,14 @@ class _InboxCard extends StatelessWidget {
                   const SizedBox(width: S.xs),
                   _Act(icon: Icons.checklist_outlined, onTap: () => _toAnytime()),
                   const Spacer(),
-                  IconBtn(Icons.account_tree_outlined, tip: '导图', color: c.accent,
+                  IconBtn(Icons.account_tree_outlined, tip: tr('导图'), color: c.accent,
                       onTap: () {
                     Navigator.of(context, rootNavigator: true).push(
                         MaterialPageRoute(builder: (_) => MindMapScreen(rootId: it.id)));
                   }),
-                  IconBtn(Icons.alt_route, tip: '捋一捋', color: c.accent,
+                  IconBtn(Icons.alt_route, tip: tr(tr('捋一捋')), color: c.accent,
                       onTap: () => _split(context)),
-                  IconBtn(Icons.edit_outlined, tip: '编辑', color: c.inkSoft,
+                  IconBtn(Icons.edit_outlined, tip: tr('编辑'), color: c.inkSoft,
                       onTap: () => showTextEdit(context, it, onSaved: onChange)),
                 ],
               ),

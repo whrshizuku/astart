@@ -10,6 +10,7 @@ import '../theme/tokens.dart';
 import '../widgets/editor.dart';
 import '../widgets/ui.dart';
 import 'settings.dart';
+import '../l10n/i18n.dart';
 
 /// 首页 = 今日（复刻老版 TodayScreen 的极简布局）。
 /// 顶栏：Start 字标 + 搜索 + 设置。
@@ -64,8 +65,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   static String _fullDate(DateTime n) {
-    const wk = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    return '${n.month}月${n.day}日 ${wk[n.weekday - 1]}';
+    final wk = [tr('周日'), tr('周一'), tr('周二'), tr('周三'), tr('周四'), tr('周五'), tr('周六')];
+    return tr('{0}月{1}日 {2}', [n.month, n.day, wk[n.weekday - 1]]);
   }
 
   @override
@@ -98,11 +99,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('今天只盯一件事',
+              Text(tr('今天只盯一件事'),
                   style: TextStyle(
                       fontSize: S.textLg, fontWeight: FontWeight.bold, color: c.ink)),
               const SizedBox(height: S.xxs),
-              Text('写一件，或者从下面选一件',
+              Text(tr('写一件，或者从下面选一件'),
                   style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
               const SizedBox(height: S.sm),
               TextField(
@@ -111,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 maxLines: null,
                 style: TextStyle(fontSize: S.textLg, color: c.ink, height: 1.4),
                 decoration: InputDecoration(
-                  hintText: '想到什么，直接写',
+                  hintText: tr('想到什么，直接写'),
                   hintStyle: TextStyle(color: c.inkSoft),
                   border: InputBorder.none,
                 ),
@@ -171,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   height: 48,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(S.radius)),
-                  child: const Text('好了',
+                  child: Text(tr('好了'),
                       style: TextStyle(color: Colors.white, fontSize: S.textMd, fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -236,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final entries = _mergeToday(today);
     final remaining = today.length + anytime.length;
     final encourage =
-        remaining == 0 ? '今天的事都做完了，了不起' : '还有 $remaining 件，一件件来';
+        remaining == 0 ? tr('今天的事都做完了，了不起') : tr('还有 {0} 件，一件件来', [remaining]);
 
     return SafeArea(
       child: Column(
@@ -286,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         children: [
                           GestureDetector(
                             onLongPress: () => setState(() => _selecting = true),
-                            child: _SectionLabel('日程', onAdd: _newSchedule),
+                            child: _SectionLabel(tr('日程'), onAdd: _newSchedule),
                           ),
                           if (entries.isNotEmpty)
                             for (var i = 0; i < entries.length; i++) ...[
@@ -294,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               _todayEntry(entries[i]),
                             ]
                           else
-                            const _ListEmpty(msg: '还没有日程'),
+                            _ListEmpty(msg: tr('还没有日程')),
                         ],
                       ),
                     );
@@ -303,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 // 随手做：没定时间的都待在这，可拖动排序；长按整行拖进上面「日程」区转日程。
                 GestureDetector(
                   onLongPress: () => setState(() => _selecting = true),
-                  child: _SectionLabel('随手做', onAdd: _quickAdd),
+                  child: _SectionLabel(tr('随手做'), onAdd: _quickAdd),
                 ),
                 if (anytime.isNotEmpty)
                   ReorderableListView.builder(
@@ -346,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     },
                   )
                 else
-                  const _ListEmpty(msg: '随手做的事，会排在这里'),
+                  _ListEmpty(msg: tr('随手做的事，会排在这里')),
               ],
             ),
           ),
@@ -393,7 +394,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final snap = s.exportJson();
     await s.delete(id, cascade: true);
     if (!mounted) return;
-    UndoHost.show(context, '已移入日程，选个时间', () async => s.restoreJson(snap));
+    UndoHost.show(context, tr('已移入日程，选个时间'), () async => s.restoreJson(snap));
     final ctx = StartApp.navigatorKey.currentContext ?? context;
     if (ctx.mounted) await showScheduleEditor(ctx, title: it.title);
   }
@@ -410,28 +411,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(S.md, S.sm, S.md, S.sm),
       child: Row(
         children: [
-          IconBtn(Icons.close, tip: '退出选择', onTap: () {
+          IconBtn(Icons.close, tip: tr('退出选择'), onTap: () {
             setState(() {
               _selecting = false;
               _selected.clear();
             });
           }),
           const SizedBox(width: S.sm),
-          Text('已选 ${_selected.length}',
-              style: TextStyle(
-                  fontSize: S.textMd,
-                  fontWeight: FontWeight.bold,
-                  color: c.ink,
-                  fontFeatures: const [FontFeature.tabularFigures()])),
+          Flexible(
+            child: Text(tr('已选 {0}', [_selected.length]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: S.textMd,
+                    fontWeight: FontWeight.bold,
+                    color: c.ink,
+                    fontFeatures: const [FontFeature.tabularFigures()])),
+          ),
           const Spacer(),
-          IconBtn(Icons.select_all_outlined, tip: '全选', onTap: () {
+          IconBtn(Icons.select_all_outlined, tip: tr('全选'), onTap: () {
             setState(() {
               _selected.length == list.length
                   ? _selected.clear()
                   : _selected.addAll(list.map((e) => e.id));
             });
           }),
-          IconBtn(Icons.check_circle_outline, tip: '完成', onTap: _batchComplete),
+          IconBtn(Icons.check_circle_outline, tip: tr('完成'), onTap: _batchComplete),
           // 删除统一走拖拽：选中后长按任一已选条目，整组拖到底部桶。
         ],
       ),
@@ -447,7 +452,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _selected.clear();
     });
     if (!mounted) return;
-    UndoHost.show(context, '完成了', () async => s.restoreJson(snap));
+    UndoHost.show(context, tr('完成了'), () async => s.restoreJson(snap));
   }
 }
 
@@ -462,11 +467,11 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(S.md, S.sm, S.md, S.sm),
       child: Row(
         children: [
-          Text('Start',
+          Text(Lang.appNameOf(Lang.current),
               style: TextStyle(
                   fontSize: S.textLg, fontWeight: FontWeight.bold, color: c.ink)),
           const Spacer(),
-          IconBtn(Icons.settings_outlined, tip: '设置', onTap: () {
+          IconBtn(Icons.settings_outlined, tip: tr('设置'), onTap: () {
             Navigator.of(context, rootNavigator: true)
                 .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
           }),
@@ -491,7 +496,7 @@ class _FocusHero extends StatelessWidget {
     it.done = true;
     await s.put(it);
     if (!context.mounted) return;
-    UndoHost.show(context, '完成一件，漂亮', () async => s.restoreJson(snap));
+    UndoHost.show(context, tr('完成一件，漂亮'), () async => s.restoreJson(snap));
   }
 
   @override
@@ -507,14 +512,14 @@ class _FocusHero extends StatelessWidget {
         children: [
           if (it == null) ...[
             // 空态：一句大标语把决策压到最小。
-            Text('只专注一件事',
+            Text(tr('只专注一件事'),
                 style: TextStyle(
                     fontSize: 32,
                     height: 1.25,
                     fontWeight: FontWeight.bold,
                     color: c.ink)),
             const SizedBox(height: S.xs),
-            Text('选好后，打开 Start 就能直接开始',
+            Text(tr('选好后，打开 Start 就能直接开始'),
                 style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
             const SizedBox(height: S.md),
             // 主胶囊：开始吧——写一件或选一件，也可以把日程卡直接拖到这里。
@@ -525,7 +530,7 @@ class _FocusHero extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 30, vertical: 13),
                 decoration: BoxDecoration(
                     color: c.accent, borderRadius: BorderRadius.circular(999)),
-                child: Text('开始吧',
+                child: Text(tr('开始吧'),
                     style: TextStyle(
                         fontSize: S.textLg,
                         fontWeight: FontWeight.bold,
@@ -541,11 +546,15 @@ class _FocusHero extends StatelessWidget {
                     const Icon(Icons.verified_outlined,
                         size: 16, color: Colors.grey),
                     const SizedBox(width: S.xxs),
-                    Text('主线完成，漂亮',
-                        style: TextStyle(
-                            fontSize: S.textSm,
-                            fontWeight: FontWeight.bold,
-                            color: c.inkSoft)),
+                    Flexible(
+                      child: Text(tr('主线完成，漂亮'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: S.textSm,
+                              fontWeight: FontWeight.bold,
+                              color: c.inkSoft)),
+                    ),
                   ],
                 ),
               ),
@@ -584,7 +593,7 @@ class _FocusHero extends StatelessWidget {
                           const Icon(Icons.play_arrow,
                               size: 20, color: Colors.white),
                           const SizedBox(width: S.xxs),
-                          Text('只做它',
+                          Text(tr('只做它'),
                               style: TextStyle(
                                   fontSize: S.textMd,
                                   fontWeight: FontWeight.bold,
@@ -595,10 +604,10 @@ class _FocusHero extends StatelessWidget {
                   ),
                   const Spacer(),
                   // 次操作：完成 / 换一件 / 编辑，纯图标不抢戏。进专注统一走底栏专注页。
-                  IconBtn(Icons.check, tip: '完成', onTap: () => _complete(context)),
+                  IconBtn(Icons.check, tip: tr('完成'), onTap: () => _complete(context)),
                   // 换一件：降低承诺压力，随时可以换。
-                  IconBtn(Icons.swap_horiz, tip: '换一件', onTap: onPick),
-                  IconBtn(Icons.edit_outlined, tip: '编辑',
+                  IconBtn(Icons.swap_horiz, tip: tr('换一件'), onTap: onPick),
+                  IconBtn(Icons.edit_outlined, tip: tr('编辑'),
                       onTap: () => showItemEditor(context, it)),
                 ],
               ),
@@ -620,7 +629,7 @@ class _FocusHero extends StatelessWidget {
                         const Icon(Icons.arrow_forward,
                             size: 20, color: Colors.white),
                         const SizedBox(width: S.xxs),
-                        Text('下一件',
+                        Text(tr('下一件'),
                             style: TextStyle(
                                 fontSize: S.textMd,
                                 fontWeight: FontWeight.bold,
@@ -652,7 +661,7 @@ class _FocusHero extends StatelessWidget {
         ),
       ),
       const SizedBox(height: S.xxs),
-      Text('小步骤 ${progress[0]}/${progress[1]}',
+      Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
           style: TextStyle(
               fontSize: S.textSm,
               color: c.inkSoft,
@@ -676,22 +685,28 @@ class _ClockHead extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(hhmm,
-                  style: TextStyle(
-                    fontSize: 44,
-                    fontWeight: FontWeight.bold,
-                    color: c.ink,
-                    fontFamily: 'monospace',
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                    height: 1.0,
-                    letterSpacing: -1,
-                  )),
-              const SizedBox(height: S.xxs),
-              Text(date, style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
-            ],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(hhmm,
+                    style: TextStyle(
+                      fontSize: 44,
+                      fontWeight: FontWeight.bold,
+                      color: c.ink,
+                      fontFamily: 'monospace',
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      height: 1.0,
+                      letterSpacing: -1,
+                    )),
+                const SizedBox(height: S.xxs),
+                Text(date,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+              ],
+            ),
           ),
           const Spacer(),
           // 鼓励语：低阻力措辞，永远不催。
@@ -788,7 +803,7 @@ class _EventLine extends StatelessWidget {
             const SizedBox(width: S.sm),
             Expanded(
               child: Text(
-                title.isEmpty ? '(无标题)' : title,
+                title.isEmpty ? tr('(无标题)') : title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -957,7 +972,7 @@ class _TaskLine extends StatelessWidget {
                         children: [
                           Icon(Icons.hexagon_outlined, size: 12, color: c.inkSoft),
                           const SizedBox(width: S.xxs),
-                          Text('小步骤 ${progress[0]}/${progress[1]}',
+                          Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
                               style: TextStyle(
                                   fontSize: 11,
                                   color: c.inkSoft,

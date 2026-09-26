@@ -3,6 +3,7 @@ import '../data/item.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 导图索引页：列出所有根导图（kindInbox 且 parentId==0 的条目）。
 /// 从捋一捋右上角进入，可新建、点进编辑、批量删除。
@@ -27,13 +28,13 @@ class _MindMapIndexScreenState extends State<MindMapIndexScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            PageHead('导图',
+            PageHead(tr('导图'),
                 count: list.length,
                 onBack: () => Navigator.pop(context),
                 actions: [
-                  IconBtn(Icons.add, tip: '新建导图', onTap: () async {
+                  IconBtn(Icons.add, tip: tr('新建导图'), onTap: () async {
                     final s = StartStore.I;
-                    final n = Item(kind: Item.kindInbox, title: '新导图', rank: -1);
+                    final n = Item(kind: Item.kindInbox, title: tr('新导图'), rank: -1);
                     await s.put(n);
                     if (!mounted) return;
                     Navigator.push(context, MaterialPageRoute(
@@ -42,9 +43,9 @@ class _MindMapIndexScreenState extends State<MindMapIndexScreen> {
                 ]),
             Expanded(
               child: list.isEmpty
-                  ? const EmptyView(
+                  ? EmptyView(
                       icon: Icons.account_tree_outlined,
-                      text: '还没有导图，点右上角新建一个')
+                      text: tr('还没有导图，点右上角新建一个'))
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(S.md, 0, S.md, S.sm),
                       itemCount: list.length,
@@ -66,13 +67,13 @@ class _MindMapIndexScreenState extends State<MindMapIndexScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      it.title.trim().isEmpty ? '（空）' : it.title,
+                                      it.title.trim().isEmpty ? tr('（空）') : it.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(fontSize: S.textMd, color: c.ink),
                                     ),
                                   ),
-                                  Text('${StartStore.I.subtasksOf(it.id).length} 节点',
+                                  Text(tr('{0} 节点', [StartStore.I.subtasksOf(it.id).length]),
                                       style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
                                 ],
                               ),
@@ -139,7 +140,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
     if (root == null) {
       return Scaffold(
         backgroundColor: c.paper,
-        body: const SafeArea(child: EmptyView(icon: Icons.account_tree_outlined, text: '这条已不在了')),
+        body: SafeArea(child: EmptyView(icon: Icons.account_tree_outlined, text: tr('这条已不在了'))),
       );
     }
     final ids = <int>[];
@@ -179,13 +180,13 @@ class _MindMapScreenState extends State<MindMapScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            PageHead('导图',
+            PageHead(tr('导图'),
                 count: total,
                 onBack: () => Navigator.pop(context),
                 actions: [
-                  IconBtn(Icons.add, tip: '新建导图', onTap: _newMap),
+                  IconBtn(Icons.add, tip: tr('新建导图'), onTap: _newMap),
                   if (_delta.isNotEmpty)
-                    IconBtn(Icons.restart_alt, tip: '重排', onTap: () => setState(() => _delta.clear())),
+                    IconBtn(Icons.restart_alt, tip: tr('重排'), onTap: () => setState(() => _delta.clear())),
                 ]),
             Expanded(
               child: InteractiveViewer(
@@ -263,7 +264,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
             ),
             child: Center(
               child: Text(
-                n.title.trim().isEmpty ? '（空）' : n.title,
+                n.title.trim().isEmpty ? tr('（空）') : n.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -298,15 +299,15 @@ class _MindMapScreenState extends State<MindMapScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                IconBtn(Icons.select_all, tip: '全选', onTap: () {
+                IconBtn(Icons.select_all, tip: tr('全选'), onTap: () {
                   setState(() {
                     _selected.length == allIds.length
                         ? _selected.clear()
                         : _selected.addAll(allIds);
                   });
                 }),
-                Text('已选 ${_selected.length}', style: TextStyle(color: c.inkSoft, fontSize: S.textSm)),
-                IconBtn(Icons.delete_outline, tip: '删除所选', color: c.accent,
+                Text(tr('已选 {0}', [_selected.length]), style: TextStyle(color: c.inkSoft, fontSize: S.textSm)),
+                IconBtn(Icons.delete_outline, tip: tr('删除所选'), color: c.accent,
                     onTap: _selected.isEmpty ? null : () {
                       final snap = s.exportJson();
                       for (final id in _selected) {
@@ -317,9 +318,9 @@ class _MindMapScreenState extends State<MindMapScreen> {
                         _selecting = false;
                         _sel = 0;
                       });
-                      UndoHost.show(context, '已删除所选', () async => s.restoreJson(snap));
+                      UndoHost.show(context, tr('已删除所选'), () async => s.restoreJson(snap));
                     }),
-                IconBtn(Icons.close, tip: '退出', onTap: () {
+                IconBtn(Icons.close, tip: tr('退出'), onTap: () {
                   setState(() {
                     _selecting = false;
                     _selected.clear();
@@ -346,30 +347,30 @@ class _MindMapScreenState extends State<MindMapScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               IconBtn(Icons.subdirectory_arrow_right,
-                  tip: '加子节点',
+                  tip: tr(tr('加子节点')),
                   color: c.accent,
                   onTap: () => _addNode(_sel == 0 ? widget.rootId : _sel)),
               IconBtn(Icons.download_outlined,
-                  tip: '导入日程 / 随手做 / 步骤',
+                  tip: tr('导入日程 / 随手做 / 步骤'),
                   onTap: () => _importItems(_sel == 0 ? widget.rootId : _sel)),
               if (_sel != 0 && !isRootSel)
-                IconBtn(Icons.playlist_add, tip: '加同级节点',
+                IconBtn(Icons.playlist_add, tip: tr('加同级节点'),
                     onTap: () {
                       final p = selItem?.parentId ?? widget.rootId;
                       _addNode(p);
                     }),
               if (_sel != 0 && selItem != null)
-                IconBtn(Icons.edit_outlined, tip: '编辑', onTap: () => _editNode(selItem)),
+                IconBtn(Icons.edit_outlined, tip: tr('编辑'), onTap: () => _editNode(selItem)),
               if (_sel != 0 && !isRootSel)
-                IconBtn(Icons.delete_outline, tip: '删除（含子枝）',
+                IconBtn(Icons.delete_outline, tip: tr('删除（含子枝）'),
                     onTap: () async {
                       final snap = s.exportJson();
                       s.delete(_sel, cascade: true);
                       setState(() => _sel = 0);
                       if (!mounted) return;
-                      UndoHost.show(context, '剪掉一枝', () async => s.restoreJson(snap));
+                      UndoHost.show(context, tr(tr('剪掉一枝')), () async => s.restoreJson(snap));
                     }),
-              IconBtn(Icons.checklist_outlined, tip: '批量删除',
+              IconBtn(Icons.checklist_outlined, tip: tr('批量删除'),
                   onTap: () => setState(() {
                         _selecting = true;
                         _selected.clear();
@@ -405,8 +406,8 @@ class _MindMapScreenState extends State<MindMapScreen> {
       final c = ThemeTokens.of(ctx);
       return StatefulBuilder(builder: (ctx, setSt) {
         String kindName(Item it) {
-          if (it.parentId != 0) return '步骤';
-          return it.dueTime > 0 ? '日程' : '随手做';
+          if (it.parentId != 0) return tr('步骤');
+          return it.dueTime > 0 ? tr('日程') : tr('随手做');
         }
 
         return Padding(
@@ -417,14 +418,23 @@ class _MindMapScreenState extends State<MindMapScreen> {
             children: [
               Row(
                 children: [
-                  Text('导入条目',
-                      style: TextStyle(
-                          fontSize: S.textLg,
-                          fontWeight: FontWeight.bold,
-                          color: c.ink)),
-                  const Spacer(),
-                  Text('选好挂到当前枝上',
-                      style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+                  Flexible(
+                    child: Text(tr('导入条目'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: S.textLg,
+                            fontWeight: FontWeight.bold,
+                            color: c.ink)),
+                  ),
+                  const SizedBox(width: S.sm),
+                  Flexible(
+                    child: Text(tr('选好挂到当前枝上'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+                  ),
                 ],
               ),
               const SizedBox(height: S.sm),
@@ -435,7 +445,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
                       ? Padding(
                           padding: const EdgeInsets.symmetric(vertical: S.xl),
                           child: Center(
-                              child: Text('还没有日程和随手做',
+                              child: Text(tr('还没有日程和随手做'),
                                   style: TextStyle(
                                       fontSize: S.textSm, color: c.inkSoft))),
                         )
@@ -480,7 +490,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
                                       const SizedBox(width: S.xs),
                                       Flexible(
                                         child: Text(
-                                          '属于 ${s.byId(it.parentId)?.title ?? '任务'}',
+                                          tr('属于 {0}', [s.byId(it.parentId)?.title ?? tr('任务')]),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
@@ -526,7 +536,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
                     borderRadius: BorderRadius.circular(S.radius),
                   ),
                   child: Text(
-                    picked.isEmpty ? '点条目选中' : '导入（${picked.length}）',
+                    picked.isEmpty ? tr('点条目选中') : tr('导入（{0}）', [picked.length]),
                     style: TextStyle(
                         fontSize: S.textMd,
                         fontWeight: FontWeight.bold,
@@ -561,11 +571,15 @@ class _MindMapScreenState extends State<MindMapScreen> {
                 children: [
                   Icon(icon, size: 20, color: color ?? c.ink),
                   const SizedBox(width: S.sm),
-                  Text(text,
-                      style: TextStyle(
-                          fontSize: S.textMd,
-                          fontWeight: FontWeight.bold,
-                          color: color ?? c.ink)),
+                  Flexible(
+                    child: Text(text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: S.textMd,
+                            fontWeight: FontWeight.bold,
+                            color: color ?? c.ink)),
+                  ),
                 ],
               ),
             ),
@@ -576,7 +590,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(n.title.trim().isEmpty ? '（空）' : n.title,
+            Text(n.title.trim().isEmpty ? tr('（空）') : n.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -584,17 +598,17 @@ class _MindMapScreenState extends State<MindMapScreen> {
                     fontWeight: FontWeight.bold,
                     color: c.ink)),
             const SizedBox(height: S.xs),
-            row(Icons.edit_outlined, '编辑文字', () async => _editNode(n)),
-            row(Icons.subdirectory_arrow_right, '加子节点',
+            row(Icons.edit_outlined, tr('编辑文字'), () async => _editNode(n)),
+            row(Icons.subdirectory_arrow_right, tr('加子节点'),
                 () => _addNode(n.id), color: c.accent),
             if (!isRoot)
-              row(Icons.delete_outline, '剪掉这枝', () async {
+              row(Icons.delete_outline, tr('剪掉这枝'), () async {
                 final snap = s.exportJson();
                 s.delete(n.id, cascade: true);
                 setState(() => _sel = 0);
                 if (!mounted) return;
                 UndoHost.show(
-                    context, '剪掉一枝', () async => s.restoreJson(snap));
+                    context, tr('剪掉一枝'), () async => s.restoreJson(snap));
               }, color: c.accent),
           ],
         ),
@@ -621,7 +635,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
               maxLines: null,
               style: TextStyle(fontSize: S.textLg, color: c.ink, height: 1.4),
               decoration: InputDecoration(
-                hintText: '写点什么',
+                hintText: tr('写点什么'),
                 hintStyle: TextStyle(color: c.inkSoft),
                 border: InputBorder.none,
               ),

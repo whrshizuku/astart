@@ -6,6 +6,7 @@ import '../data/store.dart';
 import '../main.dart';
 import '../theme/tokens.dart';
 import 'ui.dart';
+import '../l10n/i18n.dart';
 
 /// 任务/念头编辑弹层：标题、备注、时间、提醒三开关、焦点、拆步骤入口、删除。
 /// [asSchedule]=true 为首页日程加号的「新建日程」模式：打开即选日期时间，
@@ -121,10 +122,10 @@ class _EditorSheetState extends State<_EditorSheet> {
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 hintText: widget.asSchedule
-                    ? '这件日程是什么？'
+                    ? tr('这件日程是什么？')
                     : it.isIdea
-                        ? '想到什么，先记下来'
-                        : '这一步要做什么？',
+                        ? tr('想到什么，先记下来')
+                        : tr('这一步要做什么？'),
                 hintStyle: TextStyle(color: c.inkSoft),
                 border: InputBorder.none,
               ),
@@ -135,7 +136,7 @@ class _EditorSheetState extends State<_EditorSheet> {
                 style: TextStyle(fontSize: S.textMd, color: c.ink),
                 maxLines: null,
                 decoration: InputDecoration(
-                  hintText: '备注（可选）',
+                  hintText: tr('备注（可选）'),
                   hintStyle: TextStyle(color: c.inkSoft),
                   border: InputBorder.none,
                 ),
@@ -144,17 +145,21 @@ class _EditorSheetState extends State<_EditorSheet> {
             Row(
               children: [
                 IconBtn(Icons.today_outlined,
-                    tip: '安排时间', color: it.dueTime > 0 ? c.accent : c.ink,
+                    tip: tr('安排时间'), color: it.dueTime > 0 ? c.accent : c.ink,
                     onTap: () => _pickDue()),
-                Text(
-                  it.dueTime > 0 ? _fmtDue(it.dueTime) : (widget.asSchedule ? '选个日期和时间' : '随时'),
-                  style: TextStyle(
-                      color: it.dueTime > 0 ? c.accent : c.inkSoft, fontSize: S.textSm),
+                Flexible(
+                  child: Text(
+                    it.dueTime > 0 ? _fmtDue(it.dueTime) : (widget.asSchedule ? tr('选个日期和时间') : tr('随时')),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: it.dueTime > 0 ? c.accent : c.inkSoft, fontSize: S.textSm),
+                  ),
                 ),
                 const Spacer(),
                 // 新建日程必须带时间，不允许在编辑器里清空（清了就不成为日程）。
                 if (it.dueTime > 0 && !widget.asSchedule)
-                  IconBtn(Icons.close, tip: '清除时间', onTap: () async {
+                  IconBtn(Icons.close, tip: tr('清除时间'), onTap: () async {
                     it.dueTime = 0;
                     await StartStore.I.put(it);
                     setState(() {});
@@ -169,7 +174,7 @@ class _EditorSheetState extends State<_EditorSheet> {
                 // 日期底下的三项设置，仅定了时间后出现。
                 if (!it.isIdea && it.dueTime > 0) ...[
                   _Chip(
-                    label: it.alarm ? '提醒开着' : '提醒关着',
+                    label: it.alarm ? tr('提醒开着') : tr('提醒关着'),
                     icon: it.alarm
                         ? Icons.notifications_active_outlined
                         : Icons.notifications_off_outlined,
@@ -180,7 +185,7 @@ class _EditorSheetState extends State<_EditorSheet> {
                     },
                   ),
                   _Chip(
-                    label: it.eventId > 0 ? '已在日历' : '写入日历',
+                    label: it.eventId > 0 ? tr('已在日历') : tr('写入日历'),
                     icon: it.eventId > 0
                         ? Icons.event_available_outlined
                         : Icons.calendar_today_outlined,
@@ -199,10 +204,10 @@ class _EditorSheetState extends State<_EditorSheet> {
                           SnackBar(
                             behavior: SnackBarBehavior.floating,
                             backgroundColor: Colors.black87,
-                            content: const Text('已写入手机日历，到点它自己会提醒',
+                            content: Text(tr('已写入手机日历，到点它自己会提醒'),
                                 style: TextStyle(color: Colors.white)),
                             action: SnackBarAction(
-                              label: '好',
+                              label: tr('好'),
                               textColor: const Color(0xFFFF6347),
                               onPressed: () {},
                             ),
@@ -215,17 +220,17 @@ class _EditorSheetState extends State<_EditorSheet> {
                       if (mounted) setState(() {});
                     },
                   ),
-                  _Chip(label: '系统闹钟', icon: Icons.alarm_outlined, onTap: () {
+                  _Chip(label: tr('系统闹钟'), icon: Icons.alarm_outlined, onTap: () {
                     Native.setAlarm(it.alarmLabel, it.dueTime);
                   }),
                 ],
                 if (!widget.asSchedule || complete)
-                  _Chip(label: '设为今日焦点', icon: Icons.star_outline, onTap: () async {
+                  _Chip(label: tr('设为今日焦点'), icon: Icons.star_outline, onTap: () async {
                     await StartStore.I.setFocus(it.id);
                     if (context.mounted) Navigator.pop(context);
                   }),
                 if (it.isIdea)
-                  _Chip(label: '移到随手做', icon: Icons.checklist_outlined, onTap: () async {
+                  _Chip(label: tr('移到随手做'), icon: Icons.checklist_outlined, onTap: () async {
                     it.kind = Item.kindTask;
                     it.dueTime = 0;
                     it.alarm = false;
@@ -233,19 +238,19 @@ class _EditorSheetState extends State<_EditorSheet> {
                     if (context.mounted) Navigator.pop(context);
                   }),
                 if (!it.isIdea && (!widget.asSchedule || complete))
-                  _Chip(label: '拆成小步骤', icon: Icons.flare, onTap: () {
+                  _Chip(label: tr('拆成小步骤'), icon: Icons.flare, onTap: () {
                     Navigator.pop(context);
                     Navigator.of(context, rootNavigator: true)
                         .pushNamed('/steps', arguments: it.id);
                   }),
-                _Chip(label: '删除', icon: Icons.delete_outline, danger: true, onTap: () async {
+                _Chip(label: tr('删除'), icon: Icons.delete_outline, danger: true, onTap: () async {
                   final removed = StartStore.I.delete(it.id, cascade: !it.isIdea);
                   if (context.mounted) {
                     Navigator.pop(context);
                     widget.onDeleted?.call();
                     UndoHost.show(
                       context,
-                      it.isIdea ? '已删除念头' : '已删除（含小步骤）',
+                      it.isIdea ? tr('已删除念头') : tr('已删除（含小步骤）'),
                       () async => StartStore.I.restore(removed),
                     );
                   }
@@ -264,10 +269,10 @@ class _EditorSheetState extends State<_EditorSheet> {
                       behavior: SnackBarBehavior.floating,
                       backgroundColor: Colors.black87,
                       content: Text(
-                          it.title.isEmpty ? '先写一句日程内容' : '选个日期和时间，才算一条日程',
+                          it.title.isEmpty ? tr('先写一句日程内容') : tr('选个日期和时间，才算一条日程'),
                           style: const TextStyle(color: Colors.white)),
                       action: SnackBarAction(
-                        label: '好',
+                        label: tr('好'),
                         textColor: const Color(0xFFFF6347),
                         onPressed: () {},
                       ),
@@ -293,7 +298,7 @@ class _EditorSheetState extends State<_EditorSheet> {
                         behavior: SnackBarBehavior.floating,
                         backgroundColor: Colors.black87,
                         duration: const Duration(seconds: 2),
-                        content: Text('已排进 ${_fmtDue(it.dueTime)}，日历和闹钟都设好了',
+                        content: Text(tr('已排进 {0}，日历和闹钟都设好了', [_fmtDue(it.dueTime)]),
                             style: const TextStyle(color: Colors.white)),
                       ),
                     );
@@ -305,7 +310,7 @@ class _EditorSheetState extends State<_EditorSheet> {
                 height: 48,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(S.radius)),
-                child: const Text('好了',
+                child: Text(tr('好了'),
                     style: TextStyle(color: Colors.white, fontSize: S.textMd, fontWeight: FontWeight.bold)),
               ),
             ),
@@ -355,8 +360,8 @@ class _EditorSheetState extends State<_EditorSheet> {
     final today = DateTime(now.year, now.month, now.day);
     final diff = day.difference(today).inDays;
     final hm = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-    if (diff == 0) return '今天 $hm';
-    if (diff == 1) return '明天 $hm';
+    if (diff == 0) return tr('今天 {0}', [hm]);
+    if (diff == 1) return tr('明天 {0}', [hm]);
     return '${d.month}/${d.day} $hm';
   }
 }
@@ -422,7 +427,7 @@ Future<void> showScheduleBatch(BuildContext context) async {
       behavior: SnackBarBehavior.floating,
       backgroundColor: Colors.black87,
       duration: const Duration(seconds: 2),
-      content: Text('${titles.length} 件日程排进 ${_fmtDueShort(due)}，日历和闹钟都设好了',
+      content: Text(tr('{0} 件日程排进 {1}，日历和闹钟都设好了', [titles.length, _fmtDueShort(due)]),
           style: const TextStyle(color: Colors.white)),
     ),
   );
@@ -435,8 +440,8 @@ String _fmtDueShort(int ms) {
   final today = DateTime(now.year, now.month, now.day);
   final diff = day.difference(today).inDays;
   final hm = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-  if (diff == 0) return '今天 $hm';
-  if (diff == 1) return '明天 $hm';
+  if (diff == 0) return tr('今天 {0}', [hm]);
+  if (diff == 1) return tr('明天 {0}', [hm]);
   return '${d.month}/${d.day} $hm';
 }
 
@@ -461,14 +466,14 @@ class _ScheduleBatchInput extends StatelessWidget {
             maxLines: 6,
             style: TextStyle(fontSize: S.textLg, color: c.ink, height: 1.4),
             decoration: InputDecoration(
-              hintText: '写几件要排的日程，换行多写几件',
+              hintText: tr('写几件要排的日程，换行多写几件'),
               hintStyle: TextStyle(color: c.inkSoft),
               border: InputBorder.none,
             ),
           ),
           Padding(
             padding: const EdgeInsets.only(top: S.xxs),
-            child: Text('下一步为它们一起选日期和时间',
+            child: Text(tr('下一步为它们一起选日期和时间'),
                 style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
           ),
           const SizedBox(height: S.sm),
@@ -533,17 +538,17 @@ class _QuickAddState extends State<_QuickAdd> {
             style: TextStyle(fontSize: S.textLg, color: c.ink, height: 1.4),
             decoration: InputDecoration(
               hintText: widget.inbox
-                  ? '先倒进来，回头再捋；换行多记几条'
+                  ? tr('先倒进来，回头再捋；换行多记几条')
                   : widget.idea
-                      ? '一个念头一句话，换行多记几条'
-                      : '记几件要做的事，换行多写几件',
+                      ? tr('一个念头一句话，换行多记几条')
+                      : tr('记几件要做的事，换行多写几件'),
               hintStyle: TextStyle(color: c.inkSoft),
               border: InputBorder.none,
             ),
           ),
           Padding(
             padding: const EdgeInsets.only(top: S.xxs),
-            child: Text('回车换行多写几条，自动拆开各存一条',
+            child: Text(tr('回车换行多写几条，自动拆开各存一条'),
                 style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
           ),
           const SizedBox(height: S.sm),
@@ -624,7 +629,7 @@ class _TextEditSheetState extends State<_TextEditSheet> {
             maxLines: null,
             style: TextStyle(fontSize: S.textLg, color: c.ink, height: 1.4),
             decoration: InputDecoration(
-              hintText: '改一改',
+              hintText: tr('改一改'),
               hintStyle: TextStyle(color: c.inkSoft),
               border: InputBorder.none,
             ),

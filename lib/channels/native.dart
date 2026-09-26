@@ -62,6 +62,10 @@ class Native {
   static Future<void> setKeepAlive(bool on) =>
       _sys.invokeMethod('setKeepAlive', {'on': on});
 
+  /// 应用内语言覆盖（Android 13+ 同步系统每应用语言与桌面图标名；空串恢复跟随系统）。
+  static Future<void> setAppLocale(String languageTag) =>
+      _sys.invokeMethod('setAppLocale', {'tag': languageTag});
+
   /// 读取今日手机日历事件（移植自老版 Cal.today）。
   /// 返回 [{id,title,begin,end,calName}]。无权限时返回空并触发系统授权弹窗。
   static Future<List<Map<String, Object?>>> calendarToday() async {

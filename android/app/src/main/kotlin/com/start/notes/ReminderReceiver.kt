@@ -24,14 +24,16 @@ class ReminderReceiver : BroadcastReceiver() {
                     != PackageManager.PERMISSION_GRANTED) return
             val id = intent.getIntExtra("id", 0)
             val label = intent.getStringExtra("label") ?: ""
+            val lctx = AppLocale.wrap(context)
+            val due = lctx.getString(R.string.reminder_due)
             val pi = PendingIntent.getActivity(context, id,
                 context.packageManager.getLaunchIntentForPackage(context.packageName),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val n = Notification.Builder(context, ReminderAlarm.CHANNEL_NOTIFY)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(label)
-                .setContentText("到点了")
-                .setStyle(Notification.BigTextStyle().bigText("到点了"))
+                .setContentText(due)
+                .setStyle(Notification.BigTextStyle().bigText(due))
                 .setCategory(Notification.CATEGORY_REMINDER)
                 .setAutoCancel(true)
                 .setContentIntent(pi)
@@ -64,7 +66,9 @@ object ReminderAlarm {
     fun ensureChannel(context: Context) {
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
             .createNotificationChannel(
-                NotificationChannel(CHANNEL_NOTIFY, "提醒", NotificationManager.IMPORTANCE_HIGH))
+                NotificationChannel(CHANNEL_NOTIFY,
+                    AppLocale.wrap(context).getString(R.string.channel_notify),
+                    NotificationManager.IMPORTANCE_HIGH))
     }
 
     /** 注册到点闹钟；SDK>=31 无精确闹钟权限时降级为非精确 set。 */

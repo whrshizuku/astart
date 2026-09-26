@@ -51,7 +51,7 @@
     </queries>
 
     <application
-        android:label="启序"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false">

@@ -4,6 +4,7 @@ import '../data/item.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 捋一捋：把一件事拆成小步骤。输入条直接写，回车换行各存一条。
 class StepsScreen extends StatefulWidget {
@@ -74,22 +75,22 @@ class _StepsScreenState extends State<StepsScreen> {
       builder: (dctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
-        title: Text('加一步',
+        title: Text(tr('加一步'),
             style: TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: ctl,
           autofocus: true,
           style: TextStyle(fontSize: S.textLg, color: c.ink),
           cursorColor: c.accent,
-          decoration: InputDecoration(hintText: '写清楚这一步做什么', hintStyle: TextStyle(color: c.inkSoft)),
+          decoration: InputDecoration(hintText: tr('写清楚这一步做什么'), hintStyle: TextStyle(color: c.inkSoft)),
         ),
         actions: [
           // 用弹框自身 dctx：步骤页在 body 内嵌导航器内，弹框挂根导航器，
           // 误用页面 context 会关掉步骤页、弹框卡住。
-          TextButton(onPressed: () => Navigator.pop(dctx), child: Text('算了', style: TextStyle(color: c.inkSoft))),
+          TextButton(onPressed: () => Navigator.pop(dctx), child: Text(tr('算了'), style: TextStyle(color: c.inkSoft))),
           TextButton(
             onPressed: () => Navigator.pop(dctx, ctl.text.trim()),
-            child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
+            child: Text(tr('好'), style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -111,7 +112,7 @@ class _StepsScreenState extends State<StepsScreen> {
       builder: (dctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
-        title: Text('改这一步',
+        title: Text(tr('改这一步'),
             style: TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: ctl,
@@ -120,10 +121,10 @@ class _StepsScreenState extends State<StepsScreen> {
           cursorColor: c.accent,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dctx), child: Text('算了', style: TextStyle(color: c.inkSoft))),
+          TextButton(onPressed: () => Navigator.pop(dctx), child: Text(tr('算了'), style: TextStyle(color: c.inkSoft))),
           TextButton(
             onPressed: () => Navigator.pop(dctx, ctl.text.trim()),
-            child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
+            child: Text(tr('好'), style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -148,7 +149,7 @@ class _StepsScreenState extends State<StepsScreen> {
     if (task == null) {
       return Scaffold(
         backgroundColor: c.paper,
-        body: const Center(child: Text('这件事不存在了')),
+        body: Center(child: Text(tr('这件事不存在了'))),
       );
     }
     final steps = s.subtasksOf(task.id);
@@ -165,15 +166,15 @@ class _StepsScreenState extends State<StepsScreen> {
                   IconBtn(Icons.arrow_back, onTap: () => Navigator.pop(context)),
                   const Spacer(),
                   if (_selecting) ...[
-                    IconBtn(Icons.close, tip: '退出选择', onTap: () {
+                    IconBtn(Icons.close, tip: tr('退出选择'), onTap: () {
                       setState(() {
                         _selecting = false;
                         _selected.clear();
                       });
                     }),
                   ] else ...[
-                    IconBtn(Icons.add, tip: '加一步', onTap: _addStep),
-                    IconBtn(Icons.playlist_add_check, tip: '多选', onTap: () {
+                    IconBtn(Icons.add, tip: tr('加一步'), onTap: _addStep),
+                    IconBtn(Icons.playlist_add_check, tip: tr('多选'), onTap: () {
                       if (steps.isNotEmpty) setState(() => _selecting = true);
                     }),
                   ],
@@ -226,7 +227,7 @@ class _StepsScreenState extends State<StepsScreen> {
               child: steps.isEmpty
                   ? EmptyView(
                       icon: Icons.playlist_add,
-                      text: '在下面写一步，一步一步来',
+                      text: tr('在下面写一步，一步一步来'),
                     )
                   : _StepList(steps: steps, task: task, selecting: _selecting, selected: _selected,
                       onToggleSelect: (id) => setState(() {
@@ -242,7 +243,7 @@ class _StepsScreenState extends State<StepsScreen> {
             QuickInputBar(
               controller: _ctl,
               focus: _inputFocus,
-              hint: '写一步；回车换行多写几步',
+              hint: tr('写一步；回车换行多写几步'),
               onCommit: _commitInput,
               showBang: false,
             ),
@@ -372,7 +373,7 @@ class _StepList extends StatelessWidget {
                     ),
                   ),
                   if (!selecting) ...[
-                    IconBtn(Icons.edit_outlined, tip: '改这一步', color: c.inkSoft,
+                    IconBtn(Icons.edit_outlined, tip: tr('改这一步'), color: c.inkSoft,
                         onTap: () => onEdit(it)),
                     // 排序手柄：拖这里换顺序；行本身长按是拖去删除/导图。
                     ReorderableDragStartListener(

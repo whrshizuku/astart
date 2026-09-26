@@ -8,6 +8,7 @@ import '../data/item.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 专注：空心圆环 + 倒计时数字，无多余文本。Ticker 驱动，250ms 平滑刷新。
 class FocusScreen extends StatefulWidget {
@@ -149,7 +150,7 @@ class _FocusScreenState extends State<FocusScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: S.xl),
                 child: Text(
-                  _task?.title ?? '只做一件事',
+                  _task?.title ?? tr('只做一件事'),
                   maxLines: 2,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
@@ -226,7 +227,7 @@ class _FocusScreenState extends State<FocusScreen> {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: on ? c.accent : c.line),
         ),
-        child: Text(on ? '自定义 $_minutes 分' : '自定义',
+        child: Text(on ? tr('自定义 {0} 分', [_minutes]) : tr('自定义'),
             style: TextStyle(
                 fontSize: S.textMd,
                 fontWeight: FontWeight.bold,
@@ -247,7 +248,7 @@ class _FocusScreenState extends State<FocusScreen> {
           void submit() {
             final v = int.tryParse(ctl.text.trim());
             if (v == null || v < 1 || v > 240) {
-              setDlg(() => error = '请输入 1–240 之间的分钟数');
+              setDlg(() => error = tr('请输入 1–240 之间的分钟数'));
               return;
             }
             Navigator.pop(ctx);
@@ -257,7 +258,7 @@ class _FocusScreenState extends State<FocusScreen> {
           return AlertDialog(
             backgroundColor: c.card,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
-            title: Text('自定义时长',
+            title: Text(tr('自定义时长'),
                 style:
                     TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
             content: SizedBox(
@@ -274,7 +275,7 @@ class _FocusScreenState extends State<FocusScreen> {
                     color: c.ink,
                     fontFeatures: const [FontFeature.tabularFigures()]),
                 decoration: InputDecoration(
-                  suffixText: '分钟',
+                  suffixText: tr('分钟'),
                   errorText: error,
                 ),
                 onSubmitted: (_) => submit(),
@@ -283,10 +284,10 @@ class _FocusScreenState extends State<FocusScreen> {
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text('算了', style: TextStyle(color: c.inkSoft))),
+                  child: Text(tr('算了'), style: TextStyle(color: c.inkSoft))),
               TextButton(
                   onPressed: submit,
-                  child: Text('好', style: TextStyle(color: c.accent, fontWeight: FontWeight.bold))),
+                  child: Text(tr('好'), style: TextStyle(color: c.accent, fontWeight: FontWeight.bold))),
             ],
           );
         },
@@ -333,7 +334,7 @@ class _FocusScreenState extends State<FocusScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              IconBtn(Icons.close, tip: '不做了', onTap: _giveUp, color: c.inkSoft),
+              IconBtn(Icons.close, tip: tr('不做了'), onTap: _giveUp, color: c.inkSoft),
               const SizedBox(width: S.lg),
               Pressable(
                 onTap: _pause,
@@ -345,7 +346,7 @@ class _FocusScreenState extends State<FocusScreen> {
                 ),
               ),
               const SizedBox(width: S.lg),
-              IconBtn(Icons.check, tip: '提前完成', onTap: _finish, color: c.inkSoft),
+              IconBtn(Icons.check, tip: tr('提前完成'), onTap: _finish, color: c.inkSoft),
             ],
           ),
         ),

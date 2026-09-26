@@ -8,6 +8,7 @@ import '../widgets/ui.dart';
 import 'ai_settings.dart';
 import 'cloud_settings.dart';
 import 'manual.dart';
+import '../l10n/i18n.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -46,25 +47,32 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: S.sm),
-            _Group(c, label: '外观'),
+            _Group(c, label: tr('界面语言')),
+            _LangTile(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(S.xs, 0, S.xs, S.xs),
+              child: Text(tr('除简体中文外，界面翻译由人工智能生成，仅供参考'),
+                  style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+            ),
+            _Group(c, label: tr('外观')),
             _DarkModeTile(),
             _FontTile(),
-            _Group(c, label: '触感与音效'),
+            _Group(c, label: tr('触感与音效')),
             _SwitchTile(
-              title: '按压触感',
+              title: tr('按压触感'),
               value: s.prefBool('haptic', true),
               onChanged: (v) => s.setPref('haptic', v),
             ),
             _SwitchTile(
-              title: '专注滴答声',
+              title: tr('专注滴答声'),
               value: s.prefBool('focus_tick', false),
               onChanged: (v) => s.setPref('focus_tick', v),
             ),
             _NotifyModeTile(),
             _VolumeTile(),
-            _Group(c, label: '后台保活'),
+            _Group(c, label: tr('后台保活')),
             _SwitchTile(
-              title: '常驻通知防误杀',
+              title: tr('常驻通知防误杀'),
               value: s.prefBool('keep_alive', true),
               onChanged: (v) {
                 s.setPref('keep_alive', v);
@@ -72,66 +80,66 @@ class SettingsScreen extends StatelessWidget {
               },
             ),
             _SwitchTile(
-              title: '到点悬浮提醒',
+              title: tr('到点悬浮提醒'),
               value: s.prefBool('notify_on', true),
               onChanged: (v) => s.setPref('notify_on', v),
             ),
-            _Group(c, label: '数据（全在本机）'),
+            _Group(c, label: tr('数据（全在本机）')),
             _ExportTile(),
             _ImportTile(),
             _ClearTile(),
-            _Group(c, label: '扩展（默认关闭，按需开启）'),
+            _Group(c, label: tr('扩展（默认关闭，按需开启）')),
             _SwitchTile(
-              title: '在线语音识别',
+              title: tr('在线语音识别'),
               value: s.prefBool('voice_online', false),
               onChanged: (v) => s.setPref('voice_online', v),
             ),
             _NavTile(
               icon: Icons.auto_awesome,
-              title: 'AI 助手',
+              title: tr('AI 助手'),
               onTap: () => Navigator.of(context, rootNavigator: true)
                   .push(MaterialPageRoute(builder: (_) => const AiSettingsScreen())),
             ),
             _NavTile(
               icon: Icons.cloud_outlined,
-              title: '云备份（WebDAV）',
+              title: tr('云备份（WebDAV）'),
               onTap: () => Navigator.of(context, rootNavigator: true)
                   .push(MaterialPageRoute(builder: (_) => const CloudSettingsScreen())),
             ),
-            _Group(c, label: '关于'),
+            _Group(c, label: tr('关于')),
             _UpdateTile(),
             _NavTile(
               icon: Icons.menu_book_outlined,
-              title: '使用说明',
+              title: tr('使用说明'),
               onTap: () => Navigator.of(context, rootNavigator: true)
                   .push(MaterialPageRoute(builder: (_) => const ManualScreen())),
             ),
             _NavTile(
               icon: Icons.description_outlined,
-              title: '用户协议',
+              title: tr('用户协议'),
               onTap: () => Navigator.of(context, rootNavigator: true)
                   .push(MaterialPageRoute(builder: (_) => const AgreeScreen(privacy: false))),
             ),
             _NavTile(
               icon: Icons.privacy_tip_outlined,
-              title: '隐私政策',
+              title: tr('隐私政策'),
               onTap: () => Navigator.of(context, rootNavigator: true)
                   .push(MaterialPageRoute(builder: (_) => const AgreeScreen(privacy: true))),
             ),
             _NavTile(
               icon: Icons.gavel_outlined,
-              title: '开源协议',
+              title: tr('开源协议'),
               onTap: () => Navigator.of(context, rootNavigator: true)
                   .push(MaterialPageRoute(builder: (_) => const LicenseScreen())),
             ),
             _NavTile(
               icon: Icons.code,
-              title: '项目源码',
+              title: tr('项目源码'),
               onTap: () => Native.openUrl('https://gitee.com/dubwhr/astart'),
             ),
             _NavTile(
               icon: Icons.mail_outline,
-              title: '联系作者',
+              title: tr('联系作者'),
               onTap: () => Native.openUrl('mailto:3210819895@qq.com'),
             ),
             Padding(
@@ -149,11 +157,12 @@ class SettingsScreen extends StatelessWidget {
                             color: c.inkSoft,
                             height: 1.0)),
                     const SizedBox(width: S.xxs),
-                    Text('启序',
-                        style:
-                            TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
-                    const SizedBox(width: S.xxs),
-                    Text('© 2026 王浩然',
+                    if (Lang.current == Lang.zhCN)
+                      Text(tr('启序'),
+                          style:
+                              TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
+                    if (Lang.current == Lang.zhCN) const SizedBox(width: S.xxs),
+                    Text(tr('© 2026 王浩然'),
                         style:
                             TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
                   ],
@@ -214,8 +223,12 @@ class _SwitchTile extends StatelessWidget {
     return _Row(
       child: Row(
         children: [
-          Text(title, style: TextStyle(fontSize: S.textMd, color: c.ink)),
-          const Spacer(),
+          Expanded(
+            child: Text(title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: S.textMd, color: c.ink)),
+          ),
           Switch(value: value, activeThumbColor: c.accent, onChanged: onChanged),
         ],
       ),
@@ -242,8 +255,13 @@ class _NavTile extends StatelessWidget {
             children: [
               Icon(icon, size: 20, color: c.ink),
               const SizedBox(width: S.sm),
-              Text(title, style: TextStyle(fontSize: S.textMd, color: c.ink)),
-              const Spacer(),
+              Expanded(
+                child: Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: S.textMd, color: c.ink)),
+              ),
+              const SizedBox(width: S.xs),
               Icon(Icons.chevron_right, size: 20, color: c.inkSoft),
             ],
           ),
@@ -255,18 +273,91 @@ class _NavTile extends StatelessWidget {
 
 // ---------------- 具体设置项 ----------------
 
+class _LangTile extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final c = ThemeTokens.of(context);
+    final s = StartStore.I;
+    final cur = s.prefStr(Lang.prefKey, Lang.system);
+    final curName =
+        Lang.options.firstWhere((o) => o.$1 == cur, orElse: () => Lang.options.first).$2;
+    return _Row(
+      child: Pressable(
+        onTap: () => _pick(context),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(tr('界面语言'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: S.textMd, color: c.ink)),
+            ),
+            Flexible(
+              child: Text(curName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+            ),
+            Icon(Icons.chevron_right, size: 20, color: c.inkSoft),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pick(BuildContext context) async {
+    final s = StartStore.I;
+    final c = ThemeTokens.of(context);
+    final cur = s.prefStr(Lang.prefKey, Lang.system);
+    await showStartDialog<void>(
+      context,
+      title: tr('界面语言'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final o in Lang.options)
+            RadioListTile<String>(
+              value: o.$1,
+              groupValue: cur,
+              activeColor: c.accent,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.trailing,
+              title: Text(o.$2),
+              onChanged: (v) async {
+                Navigator.pop(context);
+                if (v != null) await Lang.choose(v);
+              },
+            ),
+        ],
+      ),
+      actions: (dctx) => [
+        TextButton(
+            onPressed: () => Navigator.pop(dctx),
+            child: Text(tr('取消'), style: TextStyle(color: c.inkSoft))),
+      ],
+    );
+  }
+}
+
 class _DarkModeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
     final s = StartStore.I;
-    const opts = [('跟随系统', 0), ('开', 1), ('关', 2)];
+    final opts = [(tr('跟随系统'), 0), (tr('开'), 1), (tr('关'), 2)];
     return _Row(
       child: Row(
         children: [
-          Text('深色', style: TextStyle(fontSize: S.textMd, color: c.ink)),
-          const Spacer(),
-          Row(
+          Expanded(
+            child: Text(tr('深色'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: S.textMd, color: c.ink)),
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
             children: opts
                 .map((o) => Padding(
                       padding: const EdgeInsets.only(left: S.xxs),
@@ -287,6 +378,7 @@ class _DarkModeTile extends StatelessWidget {
                       ),
                     ))
                 .toList(),
+            ),
           ),
         ],
       ),
@@ -299,13 +391,19 @@ class _FontTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
     final s = StartStore.I;
-    const opts = [('小', 0), ('中', 1), ('大', 2)];
+    final opts = [(tr('小'), 0), (tr('中'), 1), (tr('大'), 2)];
     return _Row(
       child: Row(
         children: [
-          Text('字号', style: TextStyle(fontSize: S.textMd, color: c.ink)),
-          const Spacer(),
-          Row(
+          Expanded(
+            child: Text(tr('字号'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: S.textMd, color: c.ink)),
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
             children: opts
                 .map((o) => Padding(
                       padding: const EdgeInsets.only(left: S.xxs),
@@ -333,6 +431,7 @@ class _FontTile extends StatelessWidget {
                       ),
                     ))
                 .toList(),
+            ),
           ),
         ],
       ),
@@ -345,13 +444,19 @@ class _NotifyModeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
     final s = StartStore.I;
-    const opts = [('声音', 0), ('震动', 1), ('静默', 2)];
+    final opts = [(tr('声音'), 0), (tr('震动'), 1), (tr('静默'), 2)];
     return _Row(
       child: Row(
         children: [
-          Text('做完提示', style: TextStyle(fontSize: S.textMd, color: c.ink)),
-          const Spacer(),
-          Row(
+          Expanded(
+            child: Text(tr('做完提示'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: S.textMd, color: c.ink)),
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
             children: opts
                 .map((o) => Padding(
                       padding: const EdgeInsets.only(left: S.xxs),
@@ -372,6 +477,7 @@ class _NotifyModeTile extends StatelessWidget {
                       ),
                     ))
                 .toList(),
+            ),
           ),
         ],
       ),
@@ -390,8 +496,12 @@ class _VolumeTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('提示音量', style: TextStyle(fontSize: S.textMd, color: c.ink)),
-              const Spacer(),
+              Expanded(
+                child: Text(tr('提示音量'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: S.textMd, color: c.ink)),
+              ),
               Text('${s.prefInt('sound_volume', 70)}',
                   style: TextStyle(
                       fontSize: S.textSm,
@@ -433,14 +543,19 @@ class _ExportTile extends StatelessWidget {
         onTap: () async {
           final ok = await FileApi.export(StartStore.I.exportJson());
           if (context.mounted) {
-            UndoHost.show(context, ok ? '已导出到文件' : '取消了', () {});
+            UndoHost.show(context, ok ? tr('已导出到文件') : tr('取消了'), () {});
           }
         },
         child: Row(
           children: [
             Icon(Icons.file_upload_outlined, size: 20, color: c.ink),
             const SizedBox(width: S.sm),
-            Text('导出数据', style: TextStyle(fontSize: S.textMd, color: c.ink)),
+            Expanded(
+              child: Text(tr('导出数据'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: S.textMd, color: c.ink)),
+            ),
           ],
         ),
       ),
@@ -460,7 +575,7 @@ class _ImportTile extends StatelessWidget {
           final snap = StartStore.I.exportJson();
           final r = await StartStore.I.restoreJson(text);
           if (context.mounted) {
-            UndoHost.show(context, r ? '已导入' : '文件内容不对，没导入',
+            UndoHost.show(context, r ? tr('已导入') : tr('文件内容不对，没导入'),
                 () async => StartStore.I.restoreJson(snap));
           }
         },
@@ -468,7 +583,12 @@ class _ImportTile extends StatelessWidget {
           children: [
             Icon(Icons.file_download_outlined, size: 20, color: c.ink),
             const SizedBox(width: S.sm),
-            Text('导入数据', style: TextStyle(fontSize: S.textMd, color: c.ink)),
+            Expanded(
+              child: Text(tr('导入数据'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: S.textMd, color: c.ink)),
+            ),
           ],
         ),
       ),
@@ -495,9 +615,13 @@ class _UpdateTileState extends State<_UpdateTile> {
             Icon(_checking ? Icons.sync_outlined : Icons.system_update_outlined,
                 size: 20, color: c.ink),
             const SizedBox(width: S.sm),
-            Text(_checking ? '检查中…' : '检查更新',
-                style: TextStyle(fontSize: S.textMd, color: c.ink)),
-            const Spacer(),
+            Expanded(
+              child: Text(_checking ? tr('检查中…') : tr('检查更新'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: S.textMd, color: c.ink)),
+            ),
+            const SizedBox(width: S.xs),
             FutureBuilder<String>(
               future: UpdateChecker.current(),
               builder: (_, snap) => Text('v${snap.data ?? ''}',
@@ -520,15 +644,15 @@ class _UpdateTileState extends State<_UpdateTile> {
     if (r == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已是最新版')),
+        SnackBar(content: Text(tr('已是最新版'))),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('发现新版本 v${r.version}'),
+          content: Text(tr('发现新版本 v{0}', [r.version])),
           action: r.url.isNotEmpty
               ? SnackBarAction(
-                  label: '下载', onPressed: () => Native.openUrl(r.url))
+                  label: tr('下载'), onPressed: () => Native.openUrl(r.url))
               : null,
         ),
       );
@@ -545,25 +669,30 @@ class _ClearTile extends StatelessWidget {
         onTap: () async {
           final ok = await showStartDialog<bool>(
             context,
-            title: '清空全部？',
+            title: tr('清空全部？'),
             actions: (dctx) => [
-              TextButton(onPressed: () => Navigator.pop(dctx, false), child: Text('再想想')),
+              TextButton(onPressed: () => Navigator.pop(dctx, false), child: Text(tr('再想想'))),
               TextButton(
                   onPressed: () => Navigator.pop(dctx, true),
-                  child: Text('清空', style: TextStyle(color: c.accentDark))),
+                  child: Text(tr('清空'), style: TextStyle(color: c.accentDark))),
             ],
           );
           if (ok != true || !context.mounted) return;
           final snap = await StartStore.I.clearAll();
           if (context.mounted) {
-            UndoHost.show(context, '已清空', () async => StartStore.I.restoreJson(snap));
+            UndoHost.show(context, tr('已清空'), () async => StartStore.I.restoreJson(snap));
           }
         },
         child: Row(
           children: [
             Icon(Icons.delete_outline, size: 20, color: c.accentDark),
             const SizedBox(width: S.sm),
-            Text('清空全部', style: TextStyle(fontSize: S.textMd, color: c.accentDark)),
+            Expanded(
+              child: Text(tr('清空全部'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: S.textMd, color: c.accentDark)),
+            ),
           ],
         ),
       ),

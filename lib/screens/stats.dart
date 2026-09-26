@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 统计：按日期维度查看——左右滑动切换日期，从首次使用到今天，一天一页。
 /// 每页四个数字（专注分钟 / 专注次数 / 完成的事 / 新增条目）+ 当日整点专注分布。
@@ -20,7 +21,7 @@ class _StatsScreenState extends State<StatsScreen> {
   int _days = 0;
   int _index = 0;
 
-  static const _wk = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  static final _wk = [tr('周一'), tr('周二'), tr('周三'), tr('周四'), tr('周五'), tr('周六'), tr('周日')];
 
   @override
   void initState() {
@@ -78,7 +79,7 @@ class _StatsScreenState extends State<StatsScreen> {
     final idx = _index;
     final day = _dayOf(idx);
     final isToday = idx == _days - 1;
-    final rel = isToday ? '今天' : (idx == _days - 2 ? '昨天' : null);
+    final rel = isToday ? tr('今天') : (idx == _days - 2 ? tr('昨天') : null);
     return Column(
       children: [
         // 日期翻页器：箭头与日期组收拢居中，是一个完整控件而非三摊散件。
@@ -92,7 +93,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 children: [
                   IconBtn(
                     Icons.chevron_left,
-                    tip: '前一天',
+                    tip: tr('前一天'),
                     color: idx > 0 ? c.inkSoft : c.line,
                     onTap: idx > 0 ? () => _go(idx - 1) : null,
                   ),
@@ -104,7 +105,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        '${day.month}月${day.day}日',
+                        tr('{0}月{1}日', [day.month, day.day]),
                         style: TextStyle(
                           fontSize: 19,
                           fontWeight: FontWeight.bold,
@@ -135,7 +136,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   const SizedBox(width: S.sm),
                   IconBtn(
                     Icons.chevron_right,
-                    tip: '后一天',
+                    tip: tr('后一天'),
                     color: !isToday ? c.inkSoft : c.line,
                     onTap: !isToday ? () => _go(idx + 1) : null,
                   ),
@@ -143,7 +144,7 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
               const SizedBox(height: S.xxs),
               Text(
-                '${_wk[day.weekday - 1]} · 第 ${idx + 1} 天',
+                tr('{0} · 第 {1} 天', [_wk[day.weekday - 1], idx + 1]),
                 style: TextStyle(
                     fontSize: S.textSm,
                     color: c.inkSoft,
@@ -196,16 +197,16 @@ class _DayPage extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(S.lg, S.sm, S.lg, S.xl + 16),
       children: [
         Row(children: [
-          Expanded(child: _Stat(c, big: '$focus', label: '专注分钟')),
-          Expanded(child: _Stat(c, big: '$sessions', label: '专注次数')),
+          Expanded(child: _Stat(c, big: '$focus', label: tr('专注分钟'))),
+          Expanded(child: _Stat(c, big: '$sessions', label: tr('专注次数'))),
         ]),
         const SizedBox(height: S.lg),
         Row(children: [
-          Expanded(child: _Stat(c, big: '$done', label: '完成的事')),
-          Expanded(child: _Stat(c, big: '$added', label: '新增条目')),
+          Expanded(child: _Stat(c, big: '$done', label: tr('完成的事'))),
+          Expanded(child: _Stat(c, big: '$added', label: tr('新增条目'))),
         ]),
         const SizedBox(height: S.xl),
-        Text('整点专注分布',
+        Text(tr('整点专注分布'),
             style: TextStyle(
                 fontSize: S.textMd, fontWeight: FontWeight.bold, color: c.ink)),
         const SizedBox(height: S.md),
@@ -227,7 +228,7 @@ class _DayPage extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: S.xl),
             child: Center(
-              child: Text('这一天安安静静，没有记录',
+              child: Text(tr('这一天安安静静，没有记录'),
                   style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
             ),
           ),

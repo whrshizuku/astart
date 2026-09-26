@@ -4,6 +4,7 @@ import '../data/item.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 数据管理：浏览、搜索、删除全部条目（含小步骤）。
 /// 从设置页进入，误删可撤销；所有数据仍只存在本机。
@@ -24,11 +25,11 @@ class _DataManageScreenState extends State<DataManageScreen> {
   }
 
   String _kindName(Item it) {
-    if (it.parentId != 0) return '步骤';
+    if (it.parentId != 0) return tr('步骤');
     return switch (it.kind) {
-      Item.kindIdea => '念头',
-      Item.kindInbox => '暂存',
-      _ => it.dueTime > 0 ? '日程' : '任务',
+      Item.kindIdea => tr('念头'),
+      Item.kindInbox => tr('暂存'),
+      _ => it.dueTime > 0 ? tr('日程') : tr('任务'),
     };
   }
 
@@ -57,13 +58,17 @@ class _DataManageScreenState extends State<DataManageScreen> {
                       IconBtn(Icons.arrow_back,
                           onTap: () => Navigator.pop(context)),
                       const SizedBox(width: S.xs),
-                      Text('数据管理',
-                          style: TextStyle(
-                              fontSize: S.textXl,
-                              fontWeight: FontWeight.bold,
-                              color: c.ink)),
+                      Flexible(
+                        child: Text(tr('数据管理'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: S.textXl,
+                                fontWeight: FontWeight.bold,
+                                color: c.ink)),
+                      ),
                       const Spacer(),
-                      Text('$total 条',
+                      Text(tr('{0} 条', [total]),
                           style: TextStyle(
                               fontSize: S.textSm,
                               color: c.inkSoft,
@@ -96,15 +101,15 @@ class _DataManageScreenState extends State<DataManageScreen> {
                             onChanged: (_) => setState(() {}),
                             style:
                                 TextStyle(fontSize: S.textSm, color: c.ink),
-                            decoration: const InputDecoration(
-                              hintText: '搜标题',
+                            decoration: InputDecoration(
+                              hintText: tr('搜标题'),
                               border: InputBorder.none,
                               isDense: true,
                             ),
                           ),
                         ),
                         if (_ctl.text.isNotEmpty)
-                          IconBtn(Icons.close, tip: '清空', onTap: () {
+                          IconBtn(Icons.close, tip: tr('清空'), onTap: () {
                             _ctl.clear();
                             setState(() {});
                           }),
@@ -115,7 +120,7 @@ class _DataManageScreenState extends State<DataManageScreen> {
                 Expanded(
                   child: items.isEmpty
                       ? Center(
-                          child: Text(q.isEmpty ? '还没有数据' : '没有匹配的条目',
+                          child: Text(q.isEmpty ? tr('还没有数据') : tr('没有匹配的条目'),
                               style: TextStyle(
                                   fontSize: S.textSm, color: c.inkSoft)),
                         )
@@ -132,7 +137,7 @@ class _DataManageScreenState extends State<DataManageScreen> {
                                   final snap = StartStore.I.exportJson();
                                   StartStore.I.delete(it.id, cascade: true);
                                   UndoHost.show(
-                                      context, '已删除「${it.title}」',
+                                      context, tr('已删除「{0}」', [it.title]),
                                       () async =>
                                           StartStore.I.restoreJson(snap));
                                 },
@@ -174,7 +179,7 @@ class _DataManageScreenState extends State<DataManageScreen> {
                                       Expanded(
                                         child: Text(
                                           it.title.isEmpty
-                                              ? '(无标题)'
+                                              ? tr('(无标题)')
                                               : it.title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,

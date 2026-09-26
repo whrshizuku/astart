@@ -5,6 +5,7 @@ import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/editor.dart';
 import '../widgets/ui.dart';
+import '../l10n/i18n.dart';
 
 /// 搜索 = 全局任务管理器：找全部条目（日程、随手做、小步骤），标题与备注包含即命中。
 /// 顶部分类胶囊筛选（全部 / 日程 / 随手做 / 步骤）；右上角进批量态，全选、批量删除（可撤销）；
@@ -23,7 +24,7 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _selecting = false;
   final Set<int> _selected = {};
 
-  static const _filterNames = ['全部', '日程', '随手做', '步骤'];
+  static final _filterNames = [tr('全部'), tr('日程'), tr('随手做'), tr('步骤')];
 
   @override
   void initState() {
@@ -76,11 +77,11 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   String _kindName(Item it) {
-    if (it.parentId != 0) return '步骤';
+    if (it.parentId != 0) return tr('步骤');
     return switch (it.kind) {
-      Item.kindIdea => '随手做',
-      Item.kindInbox => '随手做',
-      _ => it.dueTime > 0 ? '日程' : '随手做',
+      Item.kindIdea => tr('随手做'),
+      Item.kindInbox => tr('随手做'),
+      _ => it.dueTime > 0 ? tr('日程') : tr('随手做'),
     };
   }
 
@@ -119,7 +120,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                   style: TextStyle(
                                       fontSize: S.textMd, color: c.ink),
                                   decoration: InputDecoration(
-                                    hintText: '找事或念头',
+                                    hintText: tr('找事或念头'),
                                     hintStyle: TextStyle(color: c.inkSoft),
                                     border: InputBorder.none,
                                     isDense: true,
@@ -127,7 +128,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 ),
                               ),
                               if (_ctl.text.isNotEmpty)
-                                IconBtn(Icons.close, tip: '清空', onTap: () {
+                                IconBtn(Icons.close, tip: tr('清空'), onTap: () {
                                   _ctl.clear();
                                 }),
                             ],
@@ -138,9 +139,9 @@ class _SearchScreenState extends State<SearchScreen> {
                       if (_hits.isNotEmpty)
                         _selecting
                             ? IconBtn(Icons.close,
-                                tip: '退出选择', onTap: _exitSelect)
+                                tip: tr('退出选择'), onTap: _exitSelect)
                             : IconBtn(Icons.playlist_add_check,
-                                tip: '批量整理', onTap: () {
+                                tip: tr('批量整理'), onTap: () {
                                 setState(() => _selecting = true);
                               }),
                     ],
@@ -184,10 +185,10 @@ class _SearchScreenState extends State<SearchScreen> {
                       ? EmptyView(
                           icon: Icons.search_outlined,
                           text: _ctl.text.isEmpty
-                              ? '输入几个字，找找看'
+                              ? tr('输入几个字，找找看')
                               : _filter == 0
-                                  ? '没找到'
-                                  : '这个分类里没找到',
+                                  ? tr('没找到')
+                                  : tr('这个分类里没找到'),
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.fromLTRB(
@@ -286,7 +287,8 @@ class _SearchScreenState extends State<SearchScreen> {
                                                 const SizedBox(width: 0),
                                                 if (it.parentId != 0)
                                                   Text(
-                                                    '属于 ${StartStore.I.byId(it.parentId)?.title ?? '任务'}',
+                                                    tr('属于 {0}',
+                                                        [StartStore.I.byId(it.parentId)?.title ?? tr('任务')]),
                                                     maxLines: 1,
                                                     overflow:
                                                         TextOverflow.ellipsis,
@@ -342,7 +344,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           _selected.length == shown.length && shown.isNotEmpty
                               ? Icons.check_circle
                               : Icons.select_all,
-                          tip: '全选 / 取消',
+                          tip: tr('全选 / 取消'),
                           color: Colors.white,
                           onTap: () => setState(() {
                             _selected.length == shown.length
@@ -350,7 +352,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 : _selected.addAll(shown.map((e) => e.id));
                           }),
                         ),
-                        Text('已选 ${_selected.length}',
+                        Text(tr('已选 {0}', [_selected.length]),
                             style: const TextStyle(
                                 fontSize: S.textSm, color: Colors.white70)),
                         // 删除统一走拖拽：长按任一已选条目，整组拖到底部桶。
