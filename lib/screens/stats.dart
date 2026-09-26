@@ -81,72 +81,74 @@ class _StatsScreenState extends State<StatsScreen> {
     final rel = isToday ? '今天' : (idx == _days - 2 ? '昨天' : null);
     return Column(
       children: [
+        // 日期翻页器：箭头与日期组收拢居中，是一个完整控件而非三摊散件。
         Padding(
-          padding: const EdgeInsets.fromLTRB(S.lg, S.lg, S.lg, S.sm),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          padding: const EdgeInsets.fromLTRB(S.md, S.sm, S.md, S.xs),
+          child: Column(
             children: [
-              IconBtn(
-                Icons.chevron_left,
-                tip: '前一天',
-                color: idx > 0 ? c.ink : c.line,
-                onTap: idx > 0 ? () => _go(idx - 1) : null,
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    // 主标题与胶囊基线对齐，避免视觉错位。
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          '${day.month}月${day.day}日',
-                          style: TextStyle(
-                            fontSize: S.textXl,
-                            fontWeight: FontWeight.bold,
-                            color: c.ink,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                            height: 1.0,
-                          ),
-                        ),
-                        if (rel != null) ...[
-                          const SizedBox(width: S.xs),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: S.xs, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: c.accentSoft,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(rel,
-                                style: TextStyle(
-                                    fontSize: S.textSm,
-                                    fontWeight: FontWeight.bold,
-                                    color: c.accent,
-                                    height: 1.0)),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: S.xxs),
-                    Text(
-                      '${_wk[day.weekday - 1]} · 第 ${idx + 1} 天',
-                      style: TextStyle(
-                          fontSize: S.textSm,
-                          color: c.inkSoft,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  IconBtn(
+                    Icons.chevron_left,
+                    tip: '前一天',
+                    color: idx > 0 ? c.inkSoft : c.line,
+                    onTap: idx > 0 ? () => _go(idx - 1) : null,
+                  ),
+                  const SizedBox(width: S.sm),
+                  // 主标题与胶囊基线对齐，避免视觉错位。
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        '${day.month}月${day.day}日',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
+                          color: c.ink,
                           fontFeatures: const [FontFeature.tabularFigures()],
-                          height: 1.2),
-                    ),
-                  ],
-                ),
+                          height: 1.0,
+                        ),
+                      ),
+                      if (rel != null) ...[
+                        const SizedBox(width: S.xs),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: S.xs, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: c.accentSoft,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(rel,
+                              style: TextStyle(
+                                  fontSize: S.textSm,
+                                  fontWeight: FontWeight.bold,
+                                  color: c.accent,
+                                  height: 1.0)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(width: S.sm),
+                  IconBtn(
+                    Icons.chevron_right,
+                    tip: '后一天',
+                    color: !isToday ? c.inkSoft : c.line,
+                    onTap: !isToday ? () => _go(idx + 1) : null,
+                  ),
+                ],
               ),
-              IconBtn(
-                Icons.chevron_right,
-                tip: '后一天',
-                color: !isToday ? c.ink : c.line,
-                onTap: !isToday ? () => _go(idx + 1) : null,
+              const SizedBox(height: S.xxs),
+              Text(
+                '${_wk[day.weekday - 1]} · 第 ${idx + 1} 天',
+                style: TextStyle(
+                    fontSize: S.textSm,
+                    color: c.inkSoft,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    height: 1.2),
               ),
             ],
           ),
