@@ -50,9 +50,6 @@ class _StartAppState extends State<StartApp> {
   @override
   void initState() {
     super.initState();
-    // 红区必须在根 Overlay 内且早于拖拽浮影插入：浮影（rootOverlay）后插入，
-    // 层级自然在红区之上，整卡不再被红区遮住。
-    WidgetsBinding.instance.addPostFrameCallback((_) => GlobalDragDock.install());
     // 启动后静默检查更新，有新版自动提醒。
     Future.delayed(const Duration(seconds: 2), _autoUpdateCheck);
   }
@@ -139,23 +136,30 @@ class _StartAppState extends State<StartApp> {
                   systemNavigationBarContrastEnforced: false,
                 ),
                 // 全局撤销条 + 拖拽落点底座：挂在 navigator 之上，任何页面都能用。
-                // 拖拽激活时整个界面上移，红色垃圾桶区贴屏幕最底部出现，不遮内容。
+                // 层级（自下而上）：
+                //   1) DragDock 红区：固定贴物理屏底，不随内容上移；
+                //   2) navigator：拖拽激活时整体上移露出红区，长按浮影（rootOverlay）
+                //      随页面在这一层，拖到桶上时整卡仍在红区之上可见；
+                //   3) UndoHost 撤销条：拖拽中自动隐藏。
                 child: ValueListenableBuilder<bool>(
                   valueListenable: DragDockBus.active,
                   child: child,
                   builder: (_, dragging, nav) {
-                    final lift = dragging
-                        ? 72 + S.lg + MediaQuery.viewPaddingOf(context).bottom
-                        : 0.0;
+                    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+                    // 红区高 72 + 手势条安全区，再留 24dp 间隙；页面（含底栏、
+                    // 捋一捋输入条）整体上移这个距离，红区永不遮住输入条。
+                    final lift = 72 + S.lg + bottomInset;
                     // 纸色铺底：界面上移后露出的区域不是黑边。
                     return ColoredBox(
                       color: c.paper,
                       child: Stack(
                         children: [
+                          // 红区在最下层：仅在上移腾空的底部区域露出。
+                          DragDock(onTrash: GlobalDragDock.handleTrash),
                           AnimatedPadding(
                             duration: const Duration(milliseconds: 180),
                             curve: Curves.easeOut,
-                            padding: EdgeInsets.only(bottom: lift),
+                            padding: EdgeInsets.only(bottom: dragging ? lift : 0),
                             child: nav!,
                           ),
                           const UndoHost(),
@@ -188,24 +192,10 @@ class _StartAppState extends State<StartApp> {
   }
 }
 
-/// 全局拖拽落点底座：以 OverlayEntry 常驻在根 Navigator 的 Overlay 中。
-/// 启动后即插入（早于任何拖拽浮影）；LongPressDraggable 的 rootOverlay 浮影
-/// 在拖拽开始时才插入，层级天然在红区之上，整卡不会再被红区遮住。
+/// 全局拖拽落点的删除处理：红区 [DragDock] 作为静态层挂在 MaterialApp.builder
+/// 的 Stack 最底层（固定贴屏底，不随页面上移），拖入后调用本处理器。
 class GlobalDragDock {
   GlobalDragDock._();
-
-  static OverlayEntry? _entry;
-
-  static void install() {
-    if (_entry != null) return;
-    final nav = StartApp.navigatorKey.currentState;
-    if (nav == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => install());
-      return;
-    }
-    _entry = OverlayEntry(builder: (_) => DragDock(onTrash: _toTrash));
-    nav.overlay!.insert(_entry!);
-  }
 
   /// 等拖拽彻底结束（红区完全收起）后再弹撤销条，避免与红区同屏两条并存。
   static void _showUndoWhenIdle(String text, Future<void> Function() onUndo) {
@@ -225,7 +215,7 @@ class GlobalDragDock {
     }
   }
 
-  static Future<void> _toTrash(int id) async {
+  static Future<void> handleTrash(int id) async {
     final s = StartStore.I;
     // 多选整批拖入：一次删除、一次撤销（防误删 6 秒窗口由 UndoHost 保证）。
     final ids = DragDockBus.pendingIds;

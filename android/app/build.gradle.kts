@@ -26,8 +26,8 @@ android {
         applicationId = "com.ndstart.app"
         minSdk = 29
         targetSdk = 34
-        versionCode = 20
-        versionName = "2.2"
+        versionCode = 21
+        versionName = "2.2.1"
     }
 
     signingConfigs {

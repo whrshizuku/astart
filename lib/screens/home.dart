@@ -685,32 +685,38 @@ class _ClockHead extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(hhmm,
+          // 时钟列按内容定宽，不参与剩余空间分配：再长的外语鼓励语也不能把
+          // HH:mm 挤压折行（日语环境 monospace 回退到 CJK 等宽字体，数字偏宽）。
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(hhmm,
+                    maxLines: 1,
+                    softWrap: false,
                     style: TextStyle(
                       fontSize: 44,
                       fontWeight: FontWeight.bold,
                       color: c.ink,
-                      fontFamily: 'monospace',
                       fontFeatures: const [FontFeature.tabularFigures()],
                       height: 1.0,
                       letterSpacing: -1,
                     )),
-                const SizedBox(height: S.xxs),
-                Text(date,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
-              ],
-            ),
+              ),
+              const SizedBox(height: S.xxs),
+              Text(date,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.fade,
+                  style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+            ],
           ),
-          const Spacer(),
-          // 鼓励语：低阻力措辞，永远不催。
-          Flexible(
+          const SizedBox(width: S.sm),
+          // 鼓励语：低阻力措辞，永远不催。占剩余宽度，右对齐自行换行。
+          Expanded(
             child: Padding(
               padding: const EdgeInsets.only(top: S.xs),
               child: Text(encourage,

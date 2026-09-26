@@ -567,12 +567,13 @@ class DragDock extends StatelessWidget {
         child: IgnorePointer(
           ignoring: !on,
           child: AnimatedSlide(
-            offset: on ? Offset.zero : const Offset(0, 0.6),
+            // 收起时完全移出屏幕（100% 自身高度），不留红边。
+            offset: on ? Offset.zero : const Offset(0, 1),
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOut,
             child: AnimatedOpacity(
               opacity: on ? 1 : 0,
-              duration: const Duration(milliseconds: 160),
+              duration: const Duration(milliseconds: 120),
               curve: Curves.easeOut,
               child: DragTarget<int>(
                 onAcceptWithDetails: (d) =>
