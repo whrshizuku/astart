@@ -137,8 +137,23 @@ class SettingsScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(S.sm),
               child: Center(
-                child: Text('启序',
-                    style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text('Start',
+                        style: TextStyle(
+                            fontSize: S.textSm,
+                            fontWeight: FontWeight.bold,
+                            color: c.inkSoft,
+                            height: 1.0)),
+                    const SizedBox(width: S.xxs),
+                    Text('启序',
+                        style:
+                            TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
+                  ],
+                ),
               ),
             ),
           ],
