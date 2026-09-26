@@ -8,7 +8,6 @@ import 'screens/dump.dart';
 import 'screens/focus.dart';
 import 'screens/home.dart';
 import 'screens/manual.dart';
-import 'screens/mindmap.dart';
 import 'screens/search.dart';
 import 'screens/segment_screen.dart';
 import 'screens/splash.dart';
@@ -130,12 +129,31 @@ class _StartAppState extends State<StartApp> {
                   systemNavigationBarContrastEnforced: false,
                 ),
                 // 全局撤销条 + 拖拽落点底座：挂在 navigator 之上，任何页面都能用。
-                child: Stack(
-                  children: [
-                    child!,
-                    const UndoHost(),
-                    const _GlobalDragDock(),
-                  ],
+                // 拖拽激活时整个界面上移，红色垃圾桶区贴屏幕最底部出现，不遮内容。
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: DragDockBus.active,
+                  child: child,
+                  builder: (_, dragging, nav) {
+                    final lift = dragging
+                        ? 72 + S.lg + MediaQuery.viewPaddingOf(context).bottom
+                        : 0.0;
+                    // 纸色铺底：界面上移后露出的区域不是黑边。
+                    return ColoredBox(
+                      color: c.paper,
+                      child: Stack(
+                        children: [
+                          AnimatedPadding(
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOut,
+                            padding: EdgeInsets.only(bottom: lift),
+                            child: nav!,
+                          ),
+                          const UndoHost(),
+                          const _GlobalDragDock(),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -168,6 +186,17 @@ class _GlobalDragDock extends StatelessWidget {
 
   static Future<void> _toTrash(int id) async {
     final s = StartStore.I;
+    // 多选整批拖入：一次删除、一次撤销（防误删 6 秒窗口由 UndoHost 保证）。
+    final ids = DragDockBus.pendingIds;
+    DragDockBus.pendingIds = null;
+    if (ids != null && ids.length > 1) {
+      final snap = await s.deleteAll(ids);
+      final ctx = StartApp.navigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        UndoHost.show(ctx, '删了 ${ids.length} 条', () async => s.restoreJson(snap));
+      }
+      return;
+    }
     if (s.byId(id) == null) return;
     final removed = s.delete(id, cascade: true);
     final ctx = StartApp.navigatorKey.currentContext;
@@ -176,23 +205,8 @@ class _GlobalDragDock extends StatelessWidget {
     }
   }
 
-  static Future<void> _toMindmap(int id) async {
-    final s = StartStore.I;
-    final it = s.byId(id);
-    if (it == null) return;
-    final title = (it.title.isEmpty ? it.note : it.title).trim();
-    final root = Item(
-        kind: Item.kindInbox,
-        title: title.isEmpty ? '未命名导图' : title,
-        rank: -1);
-    await s.put(root);
-    StartApp.navigatorKey.currentState?.push(
-        MaterialPageRoute(builder: (_) => MindMapScreen(rootId: root.id)));
-  }
-
   @override
-  Widget build(BuildContext context) =>
-      const DragDock(onTrash: _toTrash, onMindmap: _toMindmap);
+  Widget build(BuildContext context) => const DragDock(onTrash: _toTrash);
 }
 
 /// 启动门：先播放开机动画，结束后进协议门与主界面。

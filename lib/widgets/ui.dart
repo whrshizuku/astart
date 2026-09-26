@@ -158,6 +158,9 @@ class CheckDot extends StatelessWidget {
 class DragDockBus {
   DragDockBus._();
   static final ValueNotifier<bool> active = ValueNotifier<bool>(false);
+
+  /// 整批拖拽暂存：多选拖起时由页面写入整组 id，垃圾桶落点读取后清空。
+  static List<int>? pendingIds;
 }
 
 /// 全局统一长按拖拽行：拖起唤出底部落点底座，反馈样式全局一致
@@ -167,43 +170,89 @@ class DraggableLine extends StatelessWidget {
   final String title;
   final bool enabled;
   final Widget child;
+
+  /// 多选整批拖拽时的整组 id（含自身）；单条拖拽留空。
+  final List<int>? dragIds;
+
+  /// 整组拖拽时本条也在选中集里：原位同样变半透明。
+  final bool selected;
+
+  /// 拖起回调（页面用来退出选择态等）。
+  final VoidCallback? onDragStarted;
   const DraggableLine({
     super.key,
     required this.id,
     required this.title,
     required this.child,
     this.enabled = true,
+    this.dragIds,
+    this.selected = false,
+    this.onDragStarted,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
+    final batch = (dragIds != null && dragIds!.length > 1) ? dragIds!.length : 0;
     return LongPressDraggable<int>(
       data: id,
       maxSimultaneousDrags: enabled ? 1 : 0,
       delay: const Duration(milliseconds: 120),
-      axis: Axis.vertical,
-      onDragStarted: () => DragDockBus.active.value = true,
-      onDragEnd: (_) => DragDockBus.active.value = false,
+      // 浮影升到根 Overlay：高于底部红区与输入条，拖到桶上时标签仍在最上层。
+      rootOverlay: true,
+      onDragStarted: () {
+        DragDockBus.active.value = true;
+        DragDockBus.pendingIds = batch > 1 ? List.of(dragIds!) : null;
+        onDragStarted?.call();
+      },
+      onDragEnd: (_) {
+        DragDockBus.active.value = false;
+        DragDockBus.pendingIds = null;
+      },
       feedback: Material(
         color: Colors.transparent,
-        child: ConstrainedBox(
-          constraints:
-              BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 96),
-          child: StartCard(
-            color: c.accentSoft,
-            child: Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: S.textMd, fontWeight: FontWeight.bold, color: c.ink),
-            ),
+        child: SizedBox(
+          width: MediaQuery.sizeOf(context).width - S.md * 2,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // 浮影就是整个标签本身，不再另做小字卡。
+              child,
+              // 多选整批：右上角叠一个番茄红数量标，一眼看出拖的是一组。
+              if (batch > 1)
+                Positioned(
+                  top: -8,
+                  right: -8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: c.accent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text('$batch 条',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white)),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
+      // 整组拖拽时，所有选中条目原位一起变半透明（拖拽进行中才降透明度，
+      // 平时选择态保持高亮）。
+      child: ValueListenableBuilder<bool>(
+        valueListenable: DragDockBus.active,
+        builder: (_, dragging, c2) => Opacity(
+          opacity: dragging && selected ? 0.45 : 1.0,
+          child: c2!,
+        ),
+        child: child,
+      ),
+      // 被拖起的那一条：原位恒半透明。
       childWhenDragging: Opacity(opacity: 0.45, child: child),
-      child: child,
     );
   }
 }
@@ -294,11 +343,20 @@ class _UndoHostState extends State<UndoHost> {
           child: AnimatedOpacity(
             opacity: visible ? 1 : 0,
             duration: const Duration(milliseconds: 180),
-            child: Container(
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: S.md, vertical: S.xs),
               decoration: BoxDecoration(
-                color: c.ink,
+                // 白卡 + 番茄红描边，与全局卡片统一（不再用黑底）
+                color: c.card,
                 borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: c.accent, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                      color: c.ink.withValues(alpha: 0.10),
+                      blurRadius: 10)
+                ],
               ),
               child: Row(
                 children: [
@@ -306,7 +364,7 @@ class _UndoHostState extends State<UndoHost> {
                     child: Text(_text ?? '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: c.paper, fontSize: S.textMd)),
+                        style: TextStyle(color: c.ink, fontSize: S.textMd)),
                   ),
                   Pressable(
                     onTap: () {
@@ -317,11 +375,12 @@ class _UndoHostState extends State<UndoHost> {
                       padding: const EdgeInsets.symmetric(horizontal: S.xs, vertical: S.xs),
                       child: Text('撤销',
                           style: TextStyle(
-                              color: c.accentLight, fontSize: S.textMd, fontWeight: FontWeight.bold)),
+                              color: c.accent, fontSize: S.textMd, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ),
+            ),
             ),
           ),
         ),
@@ -488,13 +547,12 @@ class QuickInputBar extends StatelessWidget {
   }
 }
 
-/// 全局拖拽落点底座：任何条目长按拖起时浮出「垃圾桶 / 思维导图」。
-/// 拖到垃圾桶=删除（可撤销）；拖到思维导图=以该条目为根新建导图并打开。
+/// 全局拖拽删除底座：任何条目长按拖起时，底部升起一条番茄红区域，
+/// 中央一个垃圾桶——把条目扔进去即删（6 秒可撤销）。
 /// 挂在 MaterialApp.builder 顶层，监听 [DragDockBus.active]。
 class DragDock extends StatelessWidget {
   final Future<void> Function(int id)? onTrash;
-  final Future<void> Function(int id)? onMindmap;
-  const DragDock({super.key, this.onTrash, this.onMindmap});
+  const DragDock({super.key, this.onTrash});
 
   @override
   Widget build(BuildContext context) {
@@ -503,77 +561,53 @@ class DragDock extends StatelessWidget {
       builder: (_, on, __) => Positioned(
         left: 0,
         right: 0,
-        bottom: 96,
+        // 全面屏：红区贴屏幕最底，左右全覆盖。
+        bottom: 0,
         child: IgnorePointer(
           ignoring: !on,
-          child: AnimatedOpacity(
-            opacity: on ? 1 : 0,
-            duration: const Duration(milliseconds: 160),
+          child: AnimatedSlide(
+            offset: on ? Offset.zero : const Offset(0, 0.6),
+            duration: const Duration(milliseconds: 180),
             curve: Curves.easeOut,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _Drop(
-                    icon: Icons.delete_outline,
-                    label: '移到这删除',
-                    onAccept: onTrash ?? (_) async {}),
-                const SizedBox(width: S.lg),
-                _Drop(
-                    icon: Icons.account_tree_outlined,
-                    label: '开成导图',
-                    onAccept: onMindmap ?? (_) async {}),
-              ],
+            child: AnimatedOpacity(
+              opacity: on ? 1 : 0,
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              child: DragTarget<int>(
+                onAcceptWithDetails: (d) =>
+                    (onTrash ?? (_) async {})(d.data),
+                builder: (ctx, cand, _) {
+                  final hov = cand.isNotEmpty;
+                  final navPad = MediaQuery.viewPaddingOf(ctx).bottom;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
+                    curve: Curves.easeOut,
+                    height: (hov ? 80 : 72) + navPad,
+                    padding: EdgeInsets.only(bottom: navPad),
+                    decoration: BoxDecoration(
+                      // 实心番茄红：悬停时加深一档，扔进去有明确反馈
+                      color: hov
+                          ? const Color(0xFFE04A2E)
+                          : ThemeTokens.of(ctx).accent,
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black
+                                .withValues(alpha: hov ? 0.25 : 0.12),
+                            blurRadius: hov ? 18 : 10,
+                            spreadRadius: hov ? 1 : 0)
+                      ],
+                    ),
+                    child: Center(
+                      child: Icon(Icons.delete_outline,
+                          size: hov ? 34 : 30, color: Colors.white),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Drop extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Future<void> Function(int id) onAccept;
-  const _Drop({required this.icon, required this.label, required this.onAccept});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = ThemeTokens.of(context);
-    return DragTarget<int>(
-      onAcceptWithDetails: (d) => onAccept(d.data),
-      builder: (ctx, cand, _) {
-        final hov = cand.isNotEmpty;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: S.lg, vertical: S.sm),
-          decoration: BoxDecoration(
-            color: hov ? c.accent : c.card,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: hov ? c.accent : c.line, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                  color: c.ink.withValues(alpha: hov ? 0.22 : 0.08),
-                  blurRadius: hov ? 14 : 8,
-                  spreadRadius: hov ? 1 : 0)
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon,
-                  size: 18, color: hov ? Colors.white : c.inkSoft),
-              const SizedBox(width: S.xs),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: S.textSm,
-                      fontWeight: FontWeight.bold,
-                      color: hov ? Colors.white : c.ink)),
-            ],
-          ),
-        );
-      },
     );
   }
 }

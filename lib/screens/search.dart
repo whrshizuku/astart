@@ -84,21 +84,6 @@ class _SearchScreenState extends State<SearchScreen> {
     };
   }
 
-  Future<void> _deleteOne(Item it) async {
-    final snap = StartStore.I.exportJson();
-    StartStore.I.delete(it.id, cascade: true);
-    UndoHost.show(context, '已删除「${it.title}」', () async => StartStore.I.restoreJson(snap));
-  }
-
-  Future<void> _deleteSelected() async {
-    if (_selected.isEmpty) return;
-    final s = StartStore.I;
-    final snap = await s.deleteAll(_selected.toList());
-    _exitSelect();
-    if (!mounted) return;
-    UndoHost.show(context, '已删除所选', () async => s.restoreJson(snap));
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
@@ -217,7 +202,16 @@ class _SearchScreenState extends State<SearchScreen> {
                               child: DraggableLine(
                                 id: it.id,
                                 title: it.title.isEmpty ? it.note : it.title,
-                                enabled: !_selecting,
+                                // 选择态：已选条目可整组拖删，未选条目禁拖。
+                                enabled: !_selecting || sel,
+                                dragIds: _selecting && sel && _selected.length > 1
+                                    ? _selected.toList()
+                                    : null,
+                                selected: sel,
+                                onDragStarted: () => setState(() {
+                                  _selecting = false;
+                                  _selected.clear();
+                                }),
                                 child: Row(
                                 children: [
                                   Expanded(
@@ -312,10 +306,6 @@ class _SearchScreenState extends State<SearchScreen> {
                                       ),
                                     ),
                                   ),
-                                  if (!_selecting)
-                                    IconBtn(Icons.close,
-                                        tip: '删除',
-                                        onTap: () => _deleteOne(it)),
                                 ],
                               ),
                               ),
@@ -363,11 +353,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         Text('已选 ${_selected.length}',
                             style: const TextStyle(
                                 fontSize: S.textSm, color: Colors.white70)),
-                        const SizedBox(width: S.xs),
-                        IconBtn(Icons.delete_outline,
-                            tip: '删除所选',
-                            color: c.accent,
-                            onTap: _deleteSelected),
+                        // 删除统一走拖拽：长按任一已选条目，整组拖到底部桶。
                       ],
                     ),
                   ),

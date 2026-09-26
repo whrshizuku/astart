@@ -165,7 +165,6 @@ class _StepsScreenState extends State<StepsScreen> {
                   IconBtn(Icons.arrow_back, onTap: () => Navigator.pop(context)),
                   const Spacer(),
                   if (_selecting) ...[
-                    IconBtn(Icons.delete_outline, tip: '删除所选', onTap: () => _deleteBatch()),
                     IconBtn(Icons.close, tip: '退出选择', onTap: () {
                       setState(() {
                         _selecting = false;
@@ -174,7 +173,7 @@ class _StepsScreenState extends State<StepsScreen> {
                     }),
                   ] else ...[
                     IconBtn(Icons.add, tip: '加一步', onTap: _addStep),
-                    IconBtn(Icons.delete_outline, tip: '批量整理', onTap: () {
+                    IconBtn(Icons.playlist_add_check, tip: '多选', onTap: () {
                       if (steps.isNotEmpty) setState(() => _selecting = true);
                     }),
                   ],
@@ -233,6 +232,10 @@ class _StepsScreenState extends State<StepsScreen> {
                       onToggleSelect: (id) => setState(() {
                         _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
                       }),
+                      onDragStarted: () => setState(() {
+                        _selecting = false;
+                        _selected.clear();
+                      }),
                       onEdit: _editStep,
                       onReorder: _reorderSteps),
             ),
@@ -247,17 +250,6 @@ class _StepsScreenState extends State<StepsScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _deleteBatch() async {
-    final s = StartStore.I;
-    final snap = await s.deleteAll(_selected.toList());
-    setState(() {
-      _selecting = false;
-      _selected.clear();
-    });
-    if (!mounted) return;
-    UndoHost.show(context, '已删除所选', () async => s.restoreJson(snap));
   }
 
   /// 长按拖动排序：重写 created（subtasksOf 按 created 升序）。
@@ -290,6 +282,7 @@ class _StepList extends StatelessWidget {
   final ValueChanged<int> onToggleSelect;
   final ValueChanged<Item> onEdit;
   final void Function(int oldIndex, int newIndex) onReorder;
+  final VoidCallback onDragStarted;
 
   const _StepList({
     required this.steps,
@@ -299,6 +292,7 @@ class _StepList extends StatelessWidget {
     required this.onToggleSelect,
     required this.onEdit,
     required this.onReorder,
+    required this.onDragStarted,
   });
 
   @override
@@ -309,7 +303,8 @@ class _StepList extends StatelessWidget {
     final currentId = steps.firstWhere((e) => !e.done, orElse: () => steps.last).id;
 
     return ReorderableListView.builder(
-      buildDefaultDragHandles: !selecting,
+      // 排序改走行尾手柄，行本身的长按交给全局拖拽底座（拖到桶删除）。
+      buildDefaultDragHandles: false,
       proxyDecorator: (child, i, a) => ScaleTransition(scale: a, child: child),
       padding: const EdgeInsets.fromLTRB(S.md, 0, S.md, S.lg),
       itemCount: steps.length,
@@ -321,7 +316,18 @@ class _StepList extends StatelessWidget {
         return Padding(
           key: ValueKey(it.id),
           padding: const EdgeInsets.only(bottom: S.xs),
-          child: Pressable(
+          // 全局拖拽底座：长按拖起→底部桶删除（6 秒可撤销）；
+          // 多选时拖起任一已选步骤=整组拖，浮影带数量标。
+          child: DraggableLine(
+            id: it.id,
+            title: it.title,
+            enabled: !selecting || sel,
+            dragIds: selecting && sel && selected.length > 1
+                ? selected.toList()
+                : null,
+            selected: sel,
+            onDragStarted: onDragStarted,
+            child: Pressable(
             onTap: selecting
                 ? () => onToggleSelect(it.id)
                 : () async {
@@ -339,10 +345,6 @@ class _StepList extends StatelessWidget {
                       }
                     }
                   },
-            onDoubleTap: () async {
-              final removed = s.delete(it.id, cascade: false);
-              UndoHost.show(context, '已删除步骤', () async => s.restore(removed));
-            },
             child: StartCard(
               color: sel
                   ? c.accentSoft
@@ -369,12 +371,20 @@ class _StepList extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (!selecting)
+                  if (!selecting) ...[
                     IconBtn(Icons.edit_outlined, tip: '改这一步', color: c.inkSoft,
                         onTap: () => onEdit(it)),
+                    // 排序手柄：拖这里换顺序；行本身长按是拖去删除/导图。
+                    ReorderableDragStartListener(
+                      index: i,
+                      child: Icon(Icons.drag_indicator,
+                          size: 20, color: c.inkSoft),
+                    ),
+                  ],
                 ],
               ),
             ),
+          ),
           ),
         );
       },

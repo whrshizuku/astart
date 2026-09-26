@@ -91,7 +91,6 @@ class _SegmentScreenState extends State<SegmentScreen> {
                       }),
                       IconBtn(Icons.checklist_outlined, tip: '全变随手做',
                           onTap: () => _batchClassify(Item.kindTask, dueTime: 0)),
-                      IconBtn(Icons.delete_outline, tip: '删除', onTap: _batchDelete),
                       IconBtn(Icons.close, tip: '退出选择', onTap: () {
                         setState(() {
                           _selecting = false;
@@ -102,7 +101,8 @@ class _SegmentScreenState extends State<SegmentScreen> {
                   : [
                       IconBtn(Icons.account_tree_outlined, tip: '导图', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MindMapIndexScreen()))),
                       IconBtn(Icons.add, tip: '新建', onTap: _newOne),
-                      IconBtn(Icons.playlist_add_check, tip: '批量整理', onTap: () {
+                      // 多选入口在原垃圾桶位：选中后长按任意一条拖到底部桶整批删。
+                      IconBtn(Icons.playlist_add_check, tip: '多选', onTap: () {
                         if (list.isNotEmpty) setState(() => _selecting = true);
                       }),
                     ],
@@ -122,18 +122,24 @@ class _SegmentScreenState extends State<SegmentScreen> {
                         return Padding(
                           key: ValueKey(it.id),
                           padding: const EdgeInsets.only(bottom: S.xs),
-                          child: _InboxCard(
-                            it: it,
+                          // 全局拖拽底座：长按拖起→底部桶删除（6 秒可撤销）/开成导图；
+                          // 多选时拖起任一已选条目=整组拖，浮影带数量标。
+                          child: DraggableLine(
+                            id: it.id,
+                            title: it.title,
+                            dragIds: _selecting && sel && _selected.length > 1
+                                ? _selected.toList()
+                                : null,
                             selected: sel,
-                            selecting: _selecting,
-                            onToggle: () => setState(() {
-                              sel ? _selected.remove(it.id) : _selected.add(it.id);
-                            }),
-                            onEnterSelect: () => setState(() {
-                              _selecting = true;
-                              _selected.add(it.id);
-                            }),
-                            onChange: () => setState(() {}),
+                            child: _InboxCard(
+                              it: it,
+                              selected: sel,
+                              selecting: _selecting,
+                              onToggle: () => setState(() {
+                                sel ? _selected.remove(it.id) : _selected.add(it.id);
+                              }),
+                              onChange: () => setState(() {}),
+                            ),
                           ),
                         );
                       },
@@ -175,38 +181,24 @@ class _SegmentScreenState extends State<SegmentScreen> {
     UndoHost.show(context, '已分类', () async => s.restoreJson(snap));
   }
 
-  Future<void> _batchDelete() async {
-    if (_selected.isEmpty) return;
-    final s = StartStore.I;
-    final snap = await s.deleteAll(_selected.toList());
-    setState(() {
-      _selecting = false;
-      _selected.clear();
-    });
-    if (!mounted) return;
-    UndoHost.show(context, '已删除所选', () async => s.restoreJson(snap));
-  }
-
   /// 新建一条暂存（根导航弹层，盖住底栏）。
   void _newOne() {
     showQuickAdd(Navigator.of(context, rootNavigator: true).context, inbox: true);
   }
 }
 
-/// 暂存卡片：文本 + 分类（日程/随手做）+ 捋一捋拆词 + 删除。
+/// 暂存卡片：文本 + 分类（日程/随手做）+ 捋一捋拆词；删除走长按拖到底部桶。
 class _InboxCard extends StatelessWidget {
   final Item it;
   final bool selected;
   final bool selecting;
   final VoidCallback onToggle;
-  final VoidCallback onEnterSelect;
   final VoidCallback onChange;
   const _InboxCard({
     required this.it,
     required this.selected,
     required this.selecting,
     required this.onToggle,
-    required this.onEnterSelect,
     required this.onChange,
   });
 
@@ -257,20 +249,11 @@ class _InboxCard extends StatelessWidget {
     });
   }
 
-  Future<void> _delete(BuildContext context) async {
-    final removed = StartStore.I.delete(it.id, cascade: false);
-    onChange();
-    if (context.mounted) {
-      UndoHost.show(context, '删了一条', () async => StartStore.I.restore(removed));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
     return Pressable(
       onTap: selecting ? onToggle : null,
-      onLongPress: selecting ? null : onEnterSelect,
       child: StartCard(
         color: selected ? c.accentSoft : null,
         padding: const EdgeInsets.all(S.md),
@@ -312,8 +295,6 @@ class _InboxCard extends StatelessWidget {
                       onTap: () => _split(context)),
                   IconBtn(Icons.edit_outlined, tip: '编辑', color: c.inkSoft,
                       onTap: () => showTextEdit(context, it, onSaved: onChange)),
-                  IconBtn(Icons.delete_outline, tip: '删除', color: c.inkSoft,
-                      onTap: () => _delete(context)),
                 ],
               ),
             ],

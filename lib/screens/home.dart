@@ -320,11 +320,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     },
                     itemBuilder: (_, i) {
                       final it = anytime[i];
+                      final sel = _selected.contains(it.id);
                       return DraggableLine(
                         key: ValueKey(it.id),
                         id: it.id,
                         title: it.title,
-                        enabled: !_selecting,
+                        // 选择态：已选条目可整组拖删，未选条目禁拖。
+                        enabled: !_selecting || sel,
+                        dragIds: _selecting && sel && _selected.length > 1
+                            ? _selected.toList()
+                            : null,
+                        selected: sel,
+                        onDragStarted: () => setState(() {
+                          _selecting = false;
+                          _selected.clear();
+                        }),
                         child: _TaskLine(
                           it: it,
                           nowMs: _nowMs,
@@ -352,10 +362,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return _EventLine(event: ev, nowMs: _nowMs);
     }
     final it = e['item'] as Item;
+    final sel = _selected.contains(it.id);
     return DraggableLine(
       id: it.id,
       title: it.title,
-      enabled: !_selecting,
+      enabled: !_selecting || sel,
+      dragIds: _selecting && sel && _selected.length > 1
+          ? _selected.toList()
+          : null,
+      selected: sel,
+      onDragStarted: () => setState(() {
+        _selecting = false;
+        _selected.clear();
+      }),
       child: _TaskLine(
         it: it,
         nowMs: _nowMs,
@@ -413,7 +432,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             });
           }),
           IconBtn(Icons.check_circle_outline, tip: '完成', onTap: _batchComplete),
-          IconBtn(Icons.delete_outline, tip: '删除', onTap: _batchDelete),
+          // 删除统一走拖拽：选中后长按任一已选条目，整组拖到底部桶。
         ],
       ),
     );
@@ -429,18 +448,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     if (!mounted) return;
     UndoHost.show(context, '完成了', () async => s.restoreJson(snap));
-  }
-
-  Future<void> _batchDelete() async {
-    if (_selected.isEmpty) return;
-    final s = StartStore.I;
-    final snap = await s.deleteAll(_selected.toList());
-    setState(() {
-      _selecting = false;
-      _selected.clear();
-    });
-    if (!mounted) return;
-    UndoHost.show(context, '已删除', () async => s.restoreJson(snap));
   }
 }
 
