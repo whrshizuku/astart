@@ -152,6 +152,10 @@ class SettingsScreen extends StatelessWidget {
                     Text('启序',
                         style:
                             TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
+                    const SizedBox(width: S.xxs),
+                    Text('© 2026 王浩然',
+                        style:
+                            TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
                   ],
                 ),
               ),
