@@ -584,7 +584,7 @@ class VoiceChannel(private val ctx: Context, messenger: io.flutter.plugin.common
         })
         MethodChannel(messenger, "start/voice").setMethodCallHandler { call, result ->
             when (call.method) {
-                "start" -> { start(); result.success(null) }
+                "start" -> { start(call.argument<Boolean>("online") == true); result.success(null) }
                 "stop" -> { stop(); result.success(null) }
                 else -> result.notImplemented()
             }
@@ -594,7 +594,7 @@ class VoiceChannel(private val ctx: Context, messenger: io.flutter.plugin.common
     private fun micGranted(): Boolean =
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    fun start() {
+    fun start(online: Boolean = false) {
         if (!micGranted()) {
             val act = ctx as? MainActivity
             act?.let {
@@ -603,19 +603,20 @@ class VoiceChannel(private val ctx: Context, messenger: io.flutter.plugin.common
                 return
             }
         }
-        beginListening()
+        beginListening(online)
     }
 
-    fun beginListening() {
+    fun beginListening(online: Boolean = false) {
         stop()
         // 不检查 isRecognitionAvailable（它只查 Google 服务）。直接尝试启动，
-        // 系统枚举本机所有语音引擎（含厂商自研离线），不绑谷歌、不联网。
+        // 系统枚举本机所有语音引擎（含厂商自研离线），不绑谷歌。
+        // online=false（默认）强制 PREFER_OFFLINE；用户在设置里显式开启在线识别才允许走网络。
         try {
         sr = SpeechRecognizer.createSpeechRecognizer(ctx).apply {
             setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(p: Bundle?) { sink?.success(mapOf("type" to "ready")) }
                 override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(r: Float) {}
+                override fun onRmsChanged(r: Float) { sink?.success(mapOf("type" to "rms", "text" to r.toString())) }
                 override fun onBufferReceived(b: ByteArray?) {}
                 override fun onEndOfSpeech() { sink?.success(mapOf("type" to "end")) }
                 override fun onError(e: Int) { sink?.success(mapOf("type" to "error", "text" to e.toString())) }
@@ -634,7 +635,7 @@ class VoiceChannel(private val ctx: Context, messenger: io.flutter.plugin.common
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            if (Build.VERSION.SDK_INT >= 23) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            if (Build.VERSION.SDK_INT >= 23 && !online) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         sr?.startListening(intent)
         } catch (e: Exception) {

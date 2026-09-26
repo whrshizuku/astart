@@ -5,7 +5,8 @@ import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../utils/update_checker.dart';
 import '../widgets/ui.dart';
-import 'lab.dart';
+import 'ai_settings.dart';
+import 'cloud_settings.dart';
 import 'manual.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -26,7 +27,7 @@ class SettingsScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(S.md),
           children: [
-            // 返回钮居左、应用 logo 相对整行水平居中（五击入口仍在 logo 上）。
+            // 返回钮居左、应用 logo 相对整行水平居中。
             SizedBox(
               height: 32,
               child: Stack(
@@ -37,7 +38,10 @@ class SettingsScreen extends StatelessWidget {
                     child: IconBtn(Icons.arrow_back,
                         onTap: () => Navigator.pop(context)),
                   ),
-                  const Center(child: _LabGate()),
+                  Center(
+                    child: Image.asset('assets/app_icon.png',
+                        width: 30, height: 30),
+                  ),
                 ],
               ),
             ),
@@ -76,6 +80,24 @@ class SettingsScreen extends StatelessWidget {
             _ExportTile(),
             _ImportTile(),
             _ClearTile(),
+            _Group(c, label: '扩展（默认关闭，按需开启）'),
+            _SwitchTile(
+              title: '在线语音识别',
+              value: s.prefBool('voice_online', false),
+              onChanged: (v) => s.setPref('voice_online', v),
+            ),
+            _NavTile(
+              icon: Icons.auto_awesome,
+              title: 'AI 助手',
+              onTap: () => Navigator.of(context, rootNavigator: true)
+                  .push(MaterialPageRoute(builder: (_) => const AiSettingsScreen())),
+            ),
+            _NavTile(
+              icon: Icons.cloud_outlined,
+              title: '云备份（WebDAV）',
+              onTap: () => Navigator.of(context, rootNavigator: true)
+                  .push(MaterialPageRoute(builder: (_) => const CloudSettingsScreen())),
+            ),
             _Group(c, label: '关于'),
             _UpdateTile(),
             _NavTile(
@@ -115,7 +137,7 @@ class SettingsScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(S.sm),
               child: Center(
-                child: Text('Start',
+                child: Text('启序',
                     style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
               ),
             ),
@@ -530,41 +552,3 @@ class _ClearTile extends StatelessWidget {
   }
 }
 
-/// 设置页右上角应用图标：3 秒内连点五次进入开发者选项。
-/// 无提示、无计数动画，普通使用时它就是一枚普通图标。
-class _LabGate extends StatefulWidget {
-  const _LabGate();
-
-  @override
-  State<_LabGate> createState() => _LabGateState();
-}
-
-class _LabGateState extends State<_LabGate> {
-  int _taps = 0;
-  int _firstAt = 0;
-
-  void _tap() {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (_taps == 0 || now - _firstAt > 3000) {
-      _taps = 1;
-      _firstAt = now;
-      return;
-    }
-    _taps++;
-    if (_taps >= 5) {
-      _taps = 0;
-      StartStore.I.setPref('dev_on', true);
-      Navigator.of(context, rootNavigator: true)
-          .push(MaterialPageRoute(builder: (_) => const LabScreen()));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _tap,
-      child: Image.asset('assets/app_icon.png', width: 30, height: 30),
-    );
-  }
-}

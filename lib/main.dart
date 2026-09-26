@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'ai/assist.dart';
 import 'data/item.dart';
 import 'data/store.dart';
 import 'channels/native.dart';
@@ -16,6 +19,7 @@ import 'screens/steps.dart';
 import 'theme/tokens.dart';
 import 'utils/update_checker.dart';
 import 'widgets/ui.dart';
+import 'widgets/voice_sheet.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -108,7 +112,7 @@ class _StartAppState extends State<StartApp> {
         return ThemeTokens(
           c: c,
           child: MaterialApp(
-            title: 'Start',
+            title: '启序',
             debugShowCheckedModeBanner: false,
             navigatorKey: StartApp.navigatorKey,
             scaffoldMessengerKey: StartApp.messengerKey,
@@ -184,6 +188,24 @@ class _StartAppState extends State<StartApp> {
 class _GlobalDragDock extends StatelessWidget {
   const _GlobalDragDock();
 
+  /// 等拖拽彻底结束（红区完全收起）后再弹撤销条，避免与红区同屏两条并存。
+  static void _showUndoWhenIdle(String text, Future<void> Function() onUndo) {
+    void tryShow() {
+      if (DragDockBus.active.value) return;
+      DragDockBus.active.removeListener(tryShow);
+      final ctx = StartApp.navigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        UndoHost.show(ctx, text, () async => onUndo());
+      }
+    }
+
+    if (!DragDockBus.active.value) {
+      tryShow();
+    } else {
+      DragDockBus.active.addListener(tryShow);
+    }
+  }
+
   static Future<void> _toTrash(int id) async {
     final s = StartStore.I;
     // 多选整批拖入：一次删除、一次撤销（防误删 6 秒窗口由 UndoHost 保证）。
@@ -191,18 +213,12 @@ class _GlobalDragDock extends StatelessWidget {
     DragDockBus.pendingIds = null;
     if (ids != null && ids.length > 1) {
       final snap = await s.deleteAll(ids);
-      final ctx = StartApp.navigatorKey.currentContext;
-      if (ctx != null && ctx.mounted) {
-        UndoHost.show(ctx, '删了 ${ids.length} 条', () async => s.restoreJson(snap));
-      }
+      _showUndoWhenIdle('删了 ${ids.length} 条', () async => s.restoreJson(snap));
       return;
     }
     if (s.byId(id) == null) return;
     final removed = s.delete(id, cascade: true);
-    final ctx = StartApp.navigatorKey.currentContext;
-    if (ctx != null && ctx.mounted) {
-      UndoHost.show(ctx, '已删除', () async => s.restore(removed));
-    }
+    _showUndoWhenIdle('已删除', () async => s.restore(removed));
   }
 
   @override
@@ -301,6 +317,75 @@ class _RootState extends State<Root> {
 
   /// 短按功能键 = 动手吧(速记倒进来)文字输入。
   void _openDumpText() => _goto(const DumpScreen(), 2);
+
+  /// 长按功能键 = 语音速记。识别完进动手吧输入条复核；开了 AI 可直接整批结构化入库。
+  Future<void> _startVoice() async {
+    final r = await showVoiceSheet(context);
+    if (r == null) return;
+    final text = (r['text'] as String? ?? '').trim();
+    if (text.isEmpty) return;
+    if (r['action'] == 'ai' && AiConfig.ready) {
+      await _runAiOrganize(text);
+    } else {
+      _goto(DumpScreen(initial: text), 2);
+    }
+  }
+
+  /// 语音 → AI 解析 → 整批落库，带 loading 与整批撤销。
+  Future<void> _runAiOrganize(String text) async {
+    final ctx = StartApp.navigatorKey.currentContext;
+    if (ctx == null) return;
+    unawaited(showDialog<void>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(S.lg),
+          decoration: BoxDecoration(
+            color: ThemeTokens.of(ctx).card,
+            borderRadius: BorderRadius.circular(S.radius),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.5, color: ThemeTokens.of(ctx).accent),
+              ),
+              const SizedBox(height: S.sm),
+              Text('AI 正在整理…',
+                  style: TextStyle(
+                      fontSize: S.textSm, color: ThemeTokens.of(ctx).inkSoft)),
+            ],
+          ),
+        ),
+      ),
+    ));
+    try {
+      final result = await Assistant.handle(text);
+      final mctx = StartApp.navigatorKey.currentContext;
+      if (mctx != null && mctx.mounted) Navigator.of(mctx, rootNavigator: true).pop();
+      if (result.count == 0) {
+        StartApp.messengerKey.currentState
+            ?.showSnackBar(const SnackBar(content: Text('没听出要做的事，换个说法试试')));
+        return;
+      }
+      final uctx = StartApp.navigatorKey.currentContext;
+      if (uctx != null && uctx.mounted) {
+        UndoHost.show(uctx, 'AI 整理了 ${result.count} 条',
+            () async => StartStore.I.restoreJson(result.snapshot));
+      }
+    } catch (e) {
+      final mctx = StartApp.navigatorKey.currentContext;
+      if (mctx != null && mctx.mounted) Navigator.of(mctx, rootNavigator: true).pop();
+      StartApp.messengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text('AI 没连上：$e')),
+      );
+    }
+  }
+
   void _openSearch() => _goto(const SearchScreen(), 0);
   void _openSegment() => _goto(const SegmentScreen(), 1);
   void _openFocus() => _goto(const FocusScreen(showBack: true), 3);
@@ -361,13 +446,14 @@ class _RootState extends State<Root> {
     );
   }
 
-  /// 中央红钮 = 动手吧。短按=文字输入。全局无字，纯图标。
+  /// 中央红钮 = 动手吧。短按=文字输入，长按=语音速记。全局无字，纯图标。
   Widget get _funcButton {
     final c = ThemeTokens.of(context);
     return GestureDetector(
       key: _funcKey,
       behavior: HitTestBehavior.opaque,
       onTap: _openDumpText,
+      onLongPress: _startVoice,
       child: Container(
         width: 44,
         height: 44,

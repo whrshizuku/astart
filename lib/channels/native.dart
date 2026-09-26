@@ -110,7 +110,9 @@ class SystemVoice {
     });
   }
 
-  static Future<void> start() => _ch.invokeMethod('start');
+  /// [online]=true 时允许系统在线识别（更准但走网络）；默认 false 强制离线优先。
+  static Future<void> start({bool online = false}) =>
+      _ch.invokeMethod('start', {'online': online});
   static Future<void> stop() => _ch.invokeMethod('stop');
 }
 

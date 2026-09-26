@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # Start 3.0 (Flutter) —— 构建脚本
 # 流程: 写 keystore.properties -> flutter build apk --release -> 校验 -> 改名
 # 需要环境变量:
@@ -41,7 +41,7 @@ flutter build apk --release
 if ($LASTEXITCODE -ne 0) { throw "构建失败" }
 
 $srcApk = Join-Path $ROOT "build\app\outputs\flutter-apk\app-release.apk"
-$outApk = Join-Path $ROOT "Start-3.0-signed.apk"
+$outApk = Join-Path $ROOT "Start-2.0-signed.apk"
 Copy-Item $srcApk $outApk -Force
 
 # 校验签名（v2/v3）与权限（不得出现 INTERNET）

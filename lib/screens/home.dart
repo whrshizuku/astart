@@ -451,20 +451,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 }
 
-/// 顶栏：Start 字标 + 设置（搜索在底栏）。
+/// 顶栏：Start 启序 品牌字标 + 设置（搜索在底栏）。
 class _TopBar extends StatelessWidget {
   const _TopBar();
 
   @override
   Widget build(BuildContext context) {
-    final c = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(S.md, S.sm, S.md, S.sm),
       child: Row(
         children: [
-          Text('Start',
-              style: TextStyle(
-                  fontSize: S.textLg, fontWeight: FontWeight.bold, color: c.ink)),
+          const BrandWordmark(),
           const Spacer(),
           IconBtn(Icons.settings_outlined, tip: '设置', onTap: () {
             Navigator.of(context, rootNavigator: true)

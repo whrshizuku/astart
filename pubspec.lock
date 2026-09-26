@@ -255,10 +255,10 @@ packages:
     dependency: transitive
     description:
       name: objective_c
-      sha256: ad56fd53a78ff6b1472fa59ff2a4e8b8ccabafc586fc263a1dfad0b99b5553e3
+      sha256: "2f9a00fff06cc27846da6e8bcda5e64c41a1ea656dcc4dc355ac717f8a272413"
       url: "https://pub.dev"
     source: hosted
-    version: "9.6.0"
+    version: "9.6.1"
   package_config:
     dependency: transitive
     description:
@@ -335,10 +335,10 @@ packages:
     dependency: "direct overridden"
     description:
       name: permission_handler_android
-      sha256: f9fddd3b46109bd69ff3f9efa5006d2d309b7aec0f3c1c5637a60a2d5659e76e
+      sha256: "6901d50f4d4b9a27e1749dbd4adbf06aa00d90a21a2db563405d5ce27ee120ac"
       url: "https://pub.dev"
     source: hosted
-    version: "11.1.0"
+    version: "11.0.0"
   permission_handler_apple:
     dependency: transitive
     description:

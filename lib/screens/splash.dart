@@ -25,7 +25,8 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    _ms = StartStore.I.prefInt('dev_splash_ms', 2600).clamp(1400, 6000);
+    // 启动动画时长固定 2.6 秒，不再暴露调试配置。
+    _ms = 2600;
     _ctrl = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: _ms),
@@ -88,12 +89,7 @@ class _SplashScreenState extends State<SplashScreen>
               const SizedBox(height: S.lg),
               FadeTransition(
                 opacity: word,
-                child: Text('Start',
-                    style: TextStyle(
-                        fontSize: S.textMd,
-                        letterSpacing: 4,
-                        color: c.inkSoft,
-                        fontWeight: FontWeight.w500)),
+                child: BrandWordmark(size: S.textMd, color: c.inkSoft),
               ),
             ],
           ),
