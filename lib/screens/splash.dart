@@ -89,7 +89,12 @@ class _SplashScreenState extends State<SplashScreen>
               const SizedBox(height: S.lg),
               FadeTransition(
                 opacity: word,
-                child: BrandWordmark(size: S.textMd, color: c.inkSoft),
+                child: Text('Start',
+                    style: TextStyle(
+                        fontSize: S.textMd,
+                        letterSpacing: 4,
+                        color: c.inkSoft,
+                        fontWeight: FontWeight.w500)),
               ),
             ],
           ),

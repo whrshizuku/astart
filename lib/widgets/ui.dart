@@ -66,46 +66,6 @@ class ThemeTokens extends InheritedWidget {
   bool updateShouldNotify(ThemeTokens oldWidget) => oldWidget.c != c;
 }
 
-/// 品牌字标：英文名 Start（主）+ 中文名 启序（副）。
-/// 首页顶栏与开机动画共用，保证全 app 品牌呈现统一。
-class BrandWordmark extends StatelessWidget {
-  /// Start 的字号；启序约为其 0.72。
-  final double size;
-
-  /// 传入后两部分同色（开机动画用柔色）；不传时 Start 用墨色、启序用柔墨色。
-  final Color? color;
-  const BrandWordmark({super.key, this.size = S.textLg, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = ThemeTokens.of(context);
-    final main = color ?? c.ink;
-    final sub = color ?? c.inkSoft;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text('Start',
-            style: TextStyle(
-                fontSize: size,
-                fontWeight: FontWeight.bold,
-                color: main,
-                letterSpacing: 0.5,
-                height: 1.0)),
-        SizedBox(width: size * 0.3),
-        Text('启序',
-            style: TextStyle(
-                fontSize: size * 0.72,
-                fontWeight: FontWeight.w500,
-                color: sub,
-                letterSpacing: 2,
-                height: 1.0)),
-      ],
-    );
-  }
-}
-
 /// 统一卡片。
 class StartCard extends StatelessWidget {
   final Widget child;
