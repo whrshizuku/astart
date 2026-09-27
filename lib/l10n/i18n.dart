@@ -16,7 +16,6 @@ class Lang {
 
   /// 设置页选项（值, 母语自名）。自名用各语言自己的写法，用户一看便知。
   static const options = <(String, String)>[
-    (system, '跟随系统'),
     (zhCN, '简体中文'),
     (zhTW, '繁體中文'),
     (en, 'English'),
@@ -44,7 +43,7 @@ class Lang {
     return en;
   }
 
-  /// 读取用户偏好并解析出当前语言。
+  /// 读取用户偏好并解析出当前语言。pref 为 system 时自动跟随系统。
   static String resolve() {
     final pref = StartStore.I.prefStr(prefKey, system);
     if (pref == system) return resolveDevice(
@@ -55,8 +54,12 @@ class Lang {
   /// 保存选择、同步原生侧（桌面图标名等）。界面刷新由 StartStore 监听驱动。
   static Future<void> choose(String value) async {
     await StartStore.I.setPref(prefKey, value);
-    final tag = value == system ? '' : value;
-    await Native.setAppLocale(tag);
+    // 恢复跟随系统：清空原生侧语言覆盖
+    if (value == system) {
+      await Native.setAppLocale('');
+    } else {
+      await Native.setAppLocale(value);
+    }
   }
 
   /// 桌标应用名：仅简体中文显示「启序」，其余语言统一 Start。

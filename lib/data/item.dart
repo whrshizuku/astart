@@ -6,6 +6,10 @@ class Item {
   static const int kindTask = 0;
   static const int kindInbox = 1; // 动手吧暂存：语音/手动倾倒进来，待捋一捋分类
   static const int kindIdea = 2;
+  /// 服药计划：title=药品名；note 存 JSON {"slots":[0,1,2],"cat":"...","start":ms,"end":ms}
+  /// （slots 0=早 1=中 2=晚；start/end 为起止日期 0 点毫秒，0=不限）。
+  /// 服药记录：另起一条 kind=3 + parentId=计划id + dueTime=该日该时段毫秒 + done=true。
+  static const int kindMed = 3;
 
   int id;
   int kind;
@@ -42,6 +46,7 @@ class Item {
 
   bool get isIdea => kind == kindIdea;
   bool get isInbox => kind == kindInbox;
+  bool get isMed => kind == kindMed;
   bool get isEmpty => title.trim().isEmpty && note.trim().isEmpty;
 
   String get alarmLabel {
@@ -54,9 +59,12 @@ class Item {
 
   factory Item.fromJson(Map<String, dynamic> j) => Item(
         id: _l(j['id']),
-        kind: _l(j['kind']) == kindIdea
-            ? kindIdea
-            : (_l(j['kind']) == kindInbox ? kindInbox : kindTask),
+        kind: switch (_l(j['kind'])) {
+          kindIdea => kindIdea,
+          kindInbox => kindInbox,
+          kindMed => kindMed,
+          _ => kindTask,
+        },
         parentId: _l(j['parent']),
         title: j['title'] as String? ?? '',
         note: j['note'] as String? ?? '',

@@ -41,9 +41,10 @@ class _SearchScreenState extends State<SearchScreen> {
       } else {
         _hits = StartStore.I.items
             .where((it) =>
-                it.title.toLowerCase().contains(q) ||
-                it.note.toLowerCase().contains(q) ||
-                it.alarmLabel.toLowerCase().contains(q))
+                !it.isMed &&
+                (it.title.toLowerCase().contains(q) ||
+                    it.note.toLowerCase().contains(q) ||
+                    it.alarmLabel.toLowerCase().contains(q)))
             .toList()
           ..sort((a, b) => b.id.compareTo(a.id));
       }

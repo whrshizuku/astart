@@ -72,6 +72,23 @@ class StartStore extends ChangeNotifier {
 
   // ---------------- 落盘 ----------------
 
+  /// 启动重挂全部提醒（幂等）：滑掉卡片/强停/系统清后台会清掉 AlarmManager 里
+  /// 全部闹钟，不重开机就永远不响——所以每次冷启动都重挂一遍。
+  /// 任务只挂未来到点的；服药走 armMedPlanNotify（内部跳过过去时刻，
+  /// 日历按内容签名去重不会重复写）。
+  Future<void> rearmAll() async {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    for (final it in List<Item>.from(items)) {
+      if (it.kind == Item.kindTask && !it.done && it.dueTime > nowMs && it.alarm) {
+        if (prefBool('notify_on', true)) {
+          await Native.scheduleNotify(it.id, it.alarmLabel, it.dueTime);
+        }
+      } else if (it.isMed && it.parentId == 0) {
+        await armMedPlanNotify(it);
+      }
+    }
+  }
+
   String exportJson() {
     return const JsonEncoder.withIndent('  ').convert({
       'version': 4,
@@ -106,6 +123,8 @@ class StartStore extends ChangeNotifier {
       for (final it in items) {
         if (it.kind == Item.kindTask && !it.done && it.dueTime > 0 && it.alarm) {
           await Native.scheduleNotify(it.id, it.alarmLabel, it.dueTime);
+        } else if (it.isMed && it.parentId == 0) {
+          await armMedPlanNotify(it);
         } else {
           await Native.cancelNotify(it.id);
         }
@@ -120,11 +139,31 @@ class StartStore extends ChangeNotifier {
   /// 清空全部，返回清空前快照 JSON 供撤销。
   Future<String> clearAll() async {
     final snap = exportJson();
+    for (final it in items) {
+      Native.cancelNotify(it.id);
+      if (it.isMed && it.parentId == 0) cancelMedPlanNotify(it);
+    }
     items.clear();
     seq = 1;
     await persist();
     notifyListeners();
     return snap;
+  }
+
+  /// 恢复出厂（Dart 侧）：取消全部提醒与日历事件、清内存库与偏好缓存、删落盘文件。
+  /// 之后由 Native.factoryReset 清原生偏好文件并重启。
+  Future<void> factoryReset() async {
+    for (final it in List<Item>.from(items)) {
+      Native.cancelNotify(it.id);
+      if (it.isMed && it.parentId == 0) cancelMedPlanNotify(it);
+    }
+    items.clear();
+    seq = 1;
+    prefs.clear();
+    try {
+      if (await _file.exists()) await _file.delete();
+    } catch (_) {}
+    notifyListeners();
   }
 
   // ---------------- 条目操作 ----------------
@@ -195,6 +234,8 @@ class StartStore extends ChangeNotifier {
     persist();
     for (final it in removed) {
       Native.cancelNotify(it.id);
+      // 服药计划的提醒挂在 计划id*10+i，一并取消，避免删除后仍然到点响。
+      if (it.isMed && it.parentId == 0) cancelMedPlanNotify(it);
     }
     notifyListeners();
     return removed;
@@ -209,6 +250,8 @@ class StartStore extends ChangeNotifier {
     for (final it in snapshot) {
       if (it.kind == Item.kindTask && !it.done && it.dueTime > 0 && it.alarm) {
         await Native.scheduleNotify(it.id, it.alarmLabel, it.dueTime);
+      } else if (it.isMed && it.parentId == 0) {
+        await armMedPlanNotify(it);
       }
     }
     notifyListeners();
@@ -258,7 +301,7 @@ class StartStore extends ChangeNotifier {
     final timed = <Item>[];
     final anytime = <Item>[];
     for (final it in items) {
-      if (it.isIdea || it.isInbox || it.done || it.parentId != 0) continue;
+      if (it.isIdea || it.isInbox || it.isMed || it.done || it.parentId != 0) continue;
       if (it.dueTime > 0) {
         timed.add(it);
       } else {
@@ -274,7 +317,7 @@ class StartStore extends ChangeNotifier {
   List<Item> anytimeTasks() {
     final r = <Item>[];
     for (final it in items) {
-      if (!it.isIdea && !it.isInbox && !it.done && it.parentId == 0 && it.dueTime == 0) r.add(it);
+      if (!it.isIdea && !it.isInbox && !it.isMed && !it.done && it.parentId == 0 && it.dueTime == 0) r.add(it);
     }
     _sortByRank(r);
     return r;
@@ -311,6 +354,166 @@ class StartStore extends ChangeNotifier {
       }
     }
     return [done, total];
+  }
+
+  // ---------------- 服药 ----------------
+
+  /// 全部服药计划（顶层 kind=3）。
+  List<Item> medPlans() {
+    final r = items.where((it) => it.isMed && it.parentId == 0).toList();
+    _sortByRank(r);
+    return r;
+  }
+
+  /// 服药记录：parentId=计划id 的子项集合。
+  List<Item> medLogsOf(int planId) =>
+      items.where((it) => it.isMed && it.parentId == planId).toList();
+
+  /// 解析服药计划 note JSON：{slots:[0,1,2], times:["08:00","12:30","21:00"], cat:"", dose:"1片", start:ms, end:ms}
+  static Map<String, Object?> medPlanMeta(Item it) {
+    if (!it.isMed || it.note.isEmpty) return const {};
+    try {
+      final j = jsonDecode(it.note);
+      if (j is Map<String, Object?>) return j;
+      if (j is Map) return j.cast<String, Object?>();
+    } catch (_) {}
+    return const {};
+  }
+
+  static String encodeMedPlan({
+    List<int> slots = const [],
+    required List<String> times,
+    String cat = '',
+    String dose = '',
+    int start = 0,
+    int end = 0,
+  }) {
+    return jsonEncode({
+      if (slots.isNotEmpty) 'slots': slots,
+      'times': times,
+      'cat': cat,
+      'dose': dose,
+      'start': start,
+      'end': end,
+    });
+  }
+
+  // ---------------- 服药计划提醒 ----------------
+
+  /// 服药计划提醒 id（与 Kotlin 侧 ReminderAlarm.medNotifyId 完全一致）：
+  /// 1500000000 + 计划id*1000 + 天序*10 + 时段序。高位隔离带避免与任务通知 id
+  /// （=条目 id）撞号；1000 步长支持最多 10 个自定义时段。旧版固定 plan.id*10+i
+  /// 会跨天互相覆盖导致闹钟不响，已弃用，仅在取消/重挂时顺带清理遗留。
+  int medNotifyId(int planId, int day, int slot) =>
+      1500000000 + planId * 1000 + day * 10 + slot;
+
+  static int _hMToMs(DateTime day, String t) {
+    final parts = t.split(':');
+    final h = int.tryParse(parts[0]) ?? 8;
+    final min = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    return DateTime(day.year, day.month, day.day, h, min).millisecondsSinceEpoch;
+  }
+
+  /// 此前写入日历的事件 id 列表（cal_ids_{planId} 逗号串）。
+  List<int> _calEventIds(int planId) {
+    final raw = prefs['cal_ids_$planId'] as String? ?? '';
+    return raw
+        .split(',')
+        .map((e) => int.tryParse(e.trim()) ?? 0)
+        .where((e) => e > 0)
+        .toList();
+  }
+
+  /// 取消服药计划全部提醒：30 天 × 全时段新版 id + 旧版固定 id + 系统闹钟 + 日历事件。
+  Future<void> cancelMedPlanNotify(Item plan) async {
+    final meta = medPlanMeta(plan);
+    final times = (meta['times'] as List?)?.cast<String>() ?? const [];
+    final maxSlot = times.isEmpty ? 10 : times.length;
+    for (var d = 0; d < 30; d++) {
+      for (var i = 0; i < maxSlot; i++) {
+        await Native.cancelNotify(medNotifyId(plan.id, d, i));
+      }
+    }
+    for (var i = 0; i < 3; i++) {
+      await Native.cancelNotify(plan.id * 10 + i);
+    }
+    // 清系统闹钟：按上次存的标题撤掉（防改名后旧闹钟残留）。
+    final oldTitle = prefStr('alarm_title_${plan.id}', '');
+    if (oldTitle.isNotEmpty) {
+      await Native.dismissAlarm(oldTitle);
+    }
+    for (final eid in _calEventIds(plan.id)) {
+      await Native.calendarDelete(eid);
+    }
+    prefs.remove('cal_ids_${plan.id}');
+    prefs.remove('cal_sig_${plan.id}');
+    prefs.remove('alarm_title_${plan.id}');
+    await Prefs.set('cal_ids_${plan.id}', null);
+    await Prefs.set('cal_sig_${plan.id}', null);
+    await Prefs.set('alarm_title_${plan.id}', null);
+  }
+
+  /// 保存/编辑/恢复后重挂服药计划：
+  /// 通知 = 逐日逐时段独立 id，30 天滚动窗口（notify_on 总开关控制）；
+  /// 日历 = 按内容签名去重，内容没变不重写，变了先删旧事件再写新的。
+  Future<void> armMedPlanNotify(Item plan) async {
+    final meta = medPlanMeta(plan);
+    final times = (meta['times'] as List?)?.cast<String>() ?? const [];
+    final start = (meta['start'] as int?) ?? 0;
+    final end = (meta['end'] as int?) ?? 0;
+    final label = '${plan.title} · ${(meta['dose'] as String?) ?? ''}'.trim();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final nowMs = now.millisecondsSinceEpoch;
+
+    // 旧版固定 id 清理 + 新版全部撤销后重挂（时间/日期范围可能已改，防陈旧闹钟残留）。
+    for (var i = 0; i < 3; i++) {
+      await Native.cancelNotify(plan.id * 10 + i);
+    }
+    for (var d = 0; d < 30; d++) {
+      for (var i = 0; i < times.length; i++) {
+        await Native.cancelNotify(medNotifyId(plan.id, d, i));
+      }
+    }
+    if (prefBool('notify_on', true)) {
+      for (var d = 0; d < 30; d++) {
+        final day = today.add(Duration(days: d));
+        final dayMs = day.millisecondsSinceEpoch;
+        if (start > 0 && dayMs < start) continue;
+        if (end > 0 && dayMs > end) continue;
+        for (var i = 0; i < times.length; i++) {
+          final when = _hMToMs(day, times[i]);
+          if (when <= nowMs) continue;
+          await Native.scheduleNotify(medNotifyId(plan.id, d, i), label, when);
+        }
+      }
+    }
+
+    // 日历：签名一致直接跳过（重复保存/恢复不堆积）；全部写入失败则不记签名，下次重试。
+    final sig = '$label|${times.join(',')}|$start|$end';
+    if (prefs['cal_sig_${plan.id}'] == sig) return;
+    for (final eid in _calEventIds(plan.id)) {
+      await Native.calendarDelete(eid);
+    }
+    final ids = <int>[];
+    for (var d = 0; d < 30; d++) {
+      final day = today.add(Duration(days: d));
+      final dayMs = day.millisecondsSinceEpoch;
+      if (start > 0 && dayMs < start) continue;
+      if (end > 0 && dayMs > end) continue;
+      for (final t in times) {
+        final when = _hMToMs(day, t);
+        if (when <= nowMs) continue;
+        final eid = await Native.calendarInsert(label, when);
+        if (eid > 0) ids.add(eid);
+      }
+    }
+    if (ids.isNotEmpty || times.isEmpty) {
+      prefs['cal_sig_${plan.id}'] = sig;
+      prefs['cal_ids_${plan.id}'] = ids.join(',');
+      await Prefs.set('cal_sig_${plan.id}', sig);
+      await Prefs.set('cal_ids_${plan.id}', ids.join(','));
+    }
   }
 
   // ---------------- 今日焦点 ----------------

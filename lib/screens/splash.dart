@@ -2,7 +2,6 @@ import 'dart:math' show pi;
 
 import 'package:flutter/material.dart';
 
-import '../channels/native.dart';
 import '../theme/tokens.dart';
 import '../widgets/ui.dart';
 import '../l10n/i18n.dart';
@@ -25,7 +24,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    // 启动动画时长固定 2.6 秒，不再暴露调试配置。
+    // 启动动画时长固定 2.6 秒。
     _ms = 2600;
     _ctrl = AnimationController(
       vsync: this,
@@ -34,9 +33,6 @@ class _SplashScreenState extends State<SplashScreen>
     _ctrl.addStatusListener((s) {
       if (s == AnimationStatus.completed) widget.onDone();
     });
-    // 圆环开始描边后轻轻响起开机铃声（开关在设置/开发者选项里）。
-    Future.delayed(Duration(milliseconds: (_ms * 0.22).round()),
-        Native.bootSound);
   }
 
   @override

@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 联网：Vosk 模型首次下载 + 检查更新 -->
+    <!-- 联网：Vosk 模型首次下载 + 检查更新 + AI 扩展 + WebDAV 云备份 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
@@ -11,6 +11,9 @@
     <!-- 到点提醒：悬浮通知（Android 13+ 运行时申请）+ 精确闹钟 + 开机重排 + 常驻保活 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- 装机即授的精确闹钟权限（API 33+ 闹钟类应用可用），部分国产 ROM 上有它省电策略更不敢拖延闹钟 -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 

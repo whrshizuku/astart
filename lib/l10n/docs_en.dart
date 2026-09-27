@@ -36,5 +36,5 @@ const Map<String, String> kDocsEn = {
   'AI 只在你主动点「AI 整理」时工作：把一段话拆成「日程 / 随手做 / 念头」并自动归类。发送的仅为当时那段文字，配置与数据都只存在本机，开发者不收集任何信息。':
       'The AI only works when you actively tap “Tidy with AI”: it splits a sentence into schedules / anytime tasks / ideas and files them for you. Only that one piece of text is sent; your settings and data stay on this device, and the developer collects nothing.',
   '备份内容为全量数据 JSON，文件名带时间戳，只上传到你自己填的服务器。恢复会覆盖本机全部内容，恢复后可在 6 秒内撤销。不开启、不点按钮就不会联网。':
-      'Backups are full-data JSON files named with a timestamp, uploaded only to the server you enter yourself. Restoring overwrites everything on this device and can be undone within 6 seconds. Nothing connects unless you enable the feature and tap a button.',
+      'Backups are full-data JSON files named with a timestamp, uploaded only to the server you enter yourself. Restoring overwrites everything on this device and can be undone within 5 seconds. Nothing connects unless you enable the feature and tap a button.',
 };

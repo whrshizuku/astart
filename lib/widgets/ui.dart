@@ -258,7 +258,7 @@ class DraggableLine extends StatelessWidget {
   }
 }
 
-/// 6 秒撤销条：全局栈底浮出，到时静默生效。
+/// 5 秒撤销条：全局栈底浮出，到时静默生效。
 class UndoHost extends StatefulWidget {
   const UndoHost({super.key});
 
@@ -269,7 +269,7 @@ class UndoHost extends StatefulWidget {
   /// 页面 dispose 时归零。
   static final ValueNotifier<double> extraBottom = ValueNotifier(0);
 
-  /// 显示撤销条。返回后 6 秒过期（过期不执行 onExpire 的删除，由调用方在删除时先快照）。
+  /// 显示撤销条。返回后 5 秒过期（过期不执行 onExpire 的删除，由调用方在删除时先快照）。
   static void show(BuildContext context, String text, VoidCallback onUndo) {
     final state = _state ?? context.findAncestorStateOfType<_UndoHostState>();
     state?._show(text, onUndo);
@@ -298,7 +298,7 @@ class _UndoHostState extends State<UndoHost> {
 
   void _show(String text, VoidCallback onUndo) {
     _timer?.cancel();
-    _timer = Timer(const Duration(seconds: 6), _dismiss);
+    _timer = Timer(const Duration(seconds: 5), _dismiss);
     setState(() {
       _text = text;
       _onUndo = onUndo;

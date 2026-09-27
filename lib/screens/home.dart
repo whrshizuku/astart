@@ -9,6 +9,7 @@ import '../main.dart';
 import '../theme/tokens.dart';
 import '../widgets/editor.dart';
 import '../widgets/ui.dart';
+import 'search.dart';
 import 'settings.dart';
 import '../l10n/i18n.dart';
 
@@ -191,6 +192,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// 今天：今天到期 + 过期未完成（未来的日子还没到，先不来添乱）。
+  /// 已完成的日程自动从首页移除，数据保留在统计与搜索中。
   List<Item> _todaySchedule() {
     final now = DateTime.now();
     final dayEnd =
@@ -198,7 +200,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final fid = StartStore.I.todayFocus()?.id;
     final list = StartStore.I
         .openTasks()
-        .where((it) => it.dueTime > 0 && it.dueTime < dayEnd.millisecondsSinceEpoch && it.id != fid)
+        .where((it) =>
+            it.dueTime > 0 &&
+            it.dueTime < dayEnd.millisecondsSinceEpoch &&
+            it.id != fid &&
+            !it.done)
         .toList()
       ..sort((a, b) => a.dueTime.compareTo(b.dueTime));
     return list;
@@ -437,7 +443,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             });
           }),
           IconBtn(Icons.check_circle_outline, tip: tr('完成'), onTap: _batchComplete),
-          // 删除统一走拖拽：选中后长按任一已选条目，整组拖到底部桶。
+          IconBtn(Icons.delete_outline, tip: tr('删除'), onTap: _batchDelete),
         ],
       ),
     );
@@ -454,9 +460,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     UndoHost.show(context, tr('完成了'), () async => s.restoreJson(snap));
   }
+
+  /// 批量删除：选中后点顶栏垃圾桶，整组移除（6 秒可撤销）。
+  Future<void> _batchDelete() async {
+    if (_selected.isEmpty) return;
+    final s = StartStore.I;
+    final snap = await s.deleteAll(_selected.toList());
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+    if (!mounted) return;
+    UndoHost.show(context, tr('已删除'), () async => s.restoreJson(snap));
+  }
 }
 
-/// 顶栏：Start 字标 + 设置（搜索在底栏）。
+/// 顶栏：Start 字标 + 搜索 + 设置。
 class _TopBar extends StatelessWidget {
   const _TopBar();
 
@@ -471,6 +490,11 @@ class _TopBar extends StatelessWidget {
               style: TextStyle(
                   fontSize: S.textLg, fontWeight: FontWeight.bold, color: c.ink)),
           const Spacer(),
+          IconBtn(Icons.search_outlined, tip: tr('搜索'), onTap: () {
+            Navigator.of(context, rootNavigator: true)
+                .push(MaterialPageRoute(builder: (_) => const SearchScreen()));
+          }),
+          const SizedBox(width: S.xxs),
           IconBtn(Icons.settings_outlined, tip: tr('设置'), onTap: () {
             Navigator.of(context, rootNavigator: true)
                 .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
@@ -1003,6 +1027,10 @@ class _TaskLine extends StatelessWidget {
                           fontFeatures: const [FontFeature.tabularFigures()]),
                     )
                   : _TimeChip(it: it, overdue: overdue, onChange: onChange),
+              if (!selecting) ...[
+                const SizedBox(width: S.xxs),
+                _ScheduleActions(it: it, onChange: onChange),
+              ],
             ],
           ],
         ),
@@ -1018,5 +1046,157 @@ class _TaskLine extends StatelessWidget {
   static String _mmdd(int ms) {
     final d = DateTime.fromMillisecondsSinceEpoch(ms);
     return '${d.month}/${d.day}';
+  }
+}
+
+/// 日程条目的「不做了 / 改日再做」：右侧小圆钮展开两个小胶囊，不遮挡标题。
+/// 不做了 = 删除（6 秒可撤销）；改日再做 = 日期往后推（+1/+2/+3 天或选日期），
+/// 提醒与日历随 StartStore.put 自动重挂。
+class _ScheduleActions extends StatefulWidget {
+  final Item it;
+  final VoidCallback onChange;
+  const _ScheduleActions({required this.it, required this.onChange});
+
+  @override
+  State<_ScheduleActions> createState() => _ScheduleActionsState();
+}
+
+class _ScheduleActionsState extends State<_ScheduleActions> {
+  bool _open = false;
+
+  /// 不做了：整件事从清单移除，可撤销。
+  Future<void> _skip() async {
+    if (widget.it.id <= 0) return;
+    final s = StartStore.I;
+    final snap = s.exportJson();
+    await s.delete(widget.it.id, cascade: true);
+    widget.onChange();
+    if (!context.mounted) return;
+    UndoHost.show(context, tr('不做了'), () async => s.restoreJson(snap));
+  }
+
+  /// 改日再做：dueTime 平移到未来某天的同一时分。
+  Future<void> _postpone(int days) async {
+    final it = widget.it;
+    final d0 = DateTime.fromMillisecondsSinceEpoch(it.dueTime);
+    it.dueTime = DateTime(d0.year, d0.month, d0.day + days, d0.hour, d0.minute)
+        .millisecondsSinceEpoch;
+    await StartStore.I.put(it);
+    widget.onChange();
+  }
+
+  Future<void> _postponePick() async {
+    final it = widget.it;
+    final d0 = DateTime.fromMillisecondsSinceEpoch(it.dueTime);
+    final d = await showDatePicker(
+      context: context,
+      initialDate: d0.add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+    if (d == null) return;
+    it.dueTime = DateTime(d.year, d.month, d.day, d0.hour, d0.minute)
+        .millisecondsSinceEpoch;
+    await StartStore.I.put(it);
+    widget.onChange();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ThemeTokens.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_open) ...[
+          _pill(c, tr('不做了'), _skip),
+          const SizedBox(width: S.xxs),
+          _pill(c, tr('改日再做'), () async {
+            final r = await showStartSheet<String>(context, (ctx) {
+              final c2 = ThemeTokens.of(ctx);
+              final pad = MediaQuery.of(ctx).viewInsets.bottom;
+              Widget opt(String label, String key) => Padding(
+                    padding: const EdgeInsets.only(bottom: S.xs),
+                    child: Pressable(
+                      onTap: () => Navigator.pop(ctx, key),
+                      child: Container(
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: c2.cardAlt,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(label,
+                            style: TextStyle(
+                                fontSize: S.textMd,
+                                fontWeight: FontWeight.bold,
+                                color: c2.ink)),
+                      ),
+                    ),
+                  );
+              return SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(S.md, S.md, S.md, pad + S.md),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(tr('改日再做'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: S.textLg,
+                              fontWeight: FontWeight.bold,
+                              color: c2.ink)),
+                      const SizedBox(height: S.sm),
+                      opt(tr('明天'), '1'),
+                      opt(tr('后天'), '2'),
+                      opt(tr('三天后'), '3'),
+                      opt(tr('选个日期'), 'pick'),
+                    ],
+                  ),
+                ),
+              );
+            });
+            if (r == 'pick') {
+              await _postponePick();
+            } else if (r != null) {
+              await _postpone(int.parse(r));
+            }
+          }),
+          const SizedBox(width: S.xxs),
+        ],
+        Pressable(
+          scale: 0.88,
+          onTap: () => setState(() => _open = !_open),
+          child: Icon(
+            _open ? Icons.close : Icons.more_horiz,
+            size: 18,
+            color: c.inkSoft,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pill(C c, String label, VoidCallback onTap) {
+    return Pressable(
+      scale: 0.92,
+      onTap: () {
+        setState(() => _open = false);
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: S.xs, vertical: 2),
+        decoration: BoxDecoration(
+          color: c.cardAlt,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: S.textSm,
+                fontWeight: FontWeight.bold,
+                color: c.inkSoft,
+                height: 1.2)),
+      ),
+    );
   }
 }

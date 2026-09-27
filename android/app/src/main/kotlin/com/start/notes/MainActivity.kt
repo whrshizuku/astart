@@ -1,6 +1,7 @@
 package com.start.notes
 
 import android.Manifest
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -19,7 +20,9 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.AlarmClock
 import android.provider.CalendarContract
+import android.provider.Settings
 import android.speech.RecognitionListener
+import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.view.WindowManager
@@ -29,6 +32,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import java.text.BreakIterator
 import java.util.TimeZone
 import java.util.Calendar
@@ -41,10 +45,12 @@ import java.util.Locale
 class MainActivity : FlutterActivity() {
 
     private var chime: MediaPlayer? = null
-    private var boot: MediaPlayer? = null
     private var voice: VoiceChannel? = null
     private var pendingResult: MethodChannel.Result? = null
     private var pendingExportJson: String? = null
+
+    /// 日历权限未就绪时暂存的待写事件（title to ms），授权后由 onRequestPermissionsResult 补写。
+    private val pendingCalEvents = ArrayList<Pair<String, Long>>()
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppLocale.wrap(base))
@@ -105,20 +111,6 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "stopChime" -> { stopChime(); result.success(null) }
-                "playBoot" -> {
-                    val sp = getSharedPreferences("start_prefs", MODE_PRIVATE)
-                    if (sp.getBoolean("boot_sound_on", false)) {
-                        val vol = (sp.getInt("sound_volume", 70) / 100f)
-                        playBoot(java.io.File(filesDir, "boot_sound.mp3"), vol)
-                    }
-                    result.success(null)
-                }
-                "previewBoot" -> {
-                    val vol = ((call.argument<Int>("volume") ?: 70).coerceIn(0, 100)) / 100f
-                    playBoot(java.io.File(filesDir, "boot_sound.mp3"), vol)
-                    result.success(null)
-                }
-                "stopBoot" -> { stopBoot(); result.success(null) }
                 else -> result.notImplemented()
             }
         }
@@ -141,6 +133,8 @@ class MainActivity : FlutterActivity() {
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
                         != PackageManager.PERMISSION_GRANTED
                     ) {
+                        // 暂存该次事件，授权后自动补写（onRequestPermissionsResult），不丢。
+                        if (pendingCalEvents.size < 1000) pendingCalEvents.add(title to ms)
                         ActivityCompat.requestPermissions(
                             this,
                             arrayOf(Manifest.permission.WRITE_CALENDAR, Manifest.permission.READ_CALENDAR),
@@ -148,43 +142,25 @@ class MainActivity : FlutterActivity() {
                         )
                         result.success(0)
                     } else {
+                        result.success(insertCalendarEvent(title, ms))
+                    }
+                }
+                "calendarDelete" -> {
+                    // 回收此前写入的日历事件（编辑/删除服药计划防重复堆积）。
+                    val idRaw = call.argument<Any>("id")
+                    val eid = (idRaw as? Long) ?: (idRaw as? Int)?.toLong() ?: 0L
+                    if (eid > 0 && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
+                        == PackageManager.PERMISSION_GRANTED
+                    ) {
                         try {
-                            // 取第一个可写日历（贡献者权限以上）。
-                            var calId = -1L
-                            contentResolver.query(
-                                CalendarContract.Calendars.CONTENT_URI,
-                                arrayOf(
-                                    CalendarContract.Calendars._ID,
-                                    CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL
-                                ),
-                                "${CalendarContract.Calendars.VISIBLE} = 1", null,
-                                "${CalendarContract.Calendars._ID} ASC"
-                            )?.use { cur ->
-                                while (cur.moveToNext()) {
-                                    // CALENDAR_ACCESS_LEVEL >= CONTRIBUTOR(500) 才可写。
-                                    if (cur.getInt(1) >= 500) {
-                                        calId = cur.getLong(0)
-                                        break
-                                    }
-                                }
-                            }
-                            if (calId <= 0) {
-                                result.success(0)
-                            } else {
-                                val cv = ContentValues().apply {
-                                    put(CalendarContract.Events.CALENDAR_ID, calId)
-                                    put(CalendarContract.Events.TITLE, title)
-                                    put(CalendarContract.Events.DTSTART, ms)
-                                    put(CalendarContract.Events.DTEND, ms + 60 * 60 * 1000)
-                                    put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
-                                }
-                                val uri = contentResolver.insert(CalendarContract.Events.CONTENT_URI, cv)
-                                result.success(uri?.lastPathSegment?.toLongOrNull() ?: 0)
-                            }
+                            contentResolver.delete(
+                                CalendarContract.Events.CONTENT_URI,
+                                "${CalendarContract.Events._ID} = ?",
+                                arrayOf(eid.toString()))
                         } catch (_: Exception) {
-                            result.success(0)
                         }
                     }
+                    result.success(null)
                 }
                 "vibrate" -> {
                     vibrate((call.argument<Int>("ms") ?: 20).toLong())
@@ -239,6 +215,7 @@ class MainActivity : FlutterActivity() {
                     val title = call.argument<String>("title") ?: ""
                     val msRaw = call.argument<Any>("ms")
                     val ms = (msRaw as? Long) ?: (msRaw as? Int)?.toLong() ?: 0L
+                    val daily = call.argument<Boolean>("daily") ?: false
                     try {
                         val cal = Calendar.getInstance().apply { timeInMillis = ms }
                         val i = Intent(AlarmClock.ACTION_SET_ALARM).apply {
@@ -246,11 +223,35 @@ class MainActivity : FlutterActivity() {
                             putExtra(AlarmClock.EXTRA_HOUR, cal.get(Calendar.HOUR_OF_DAY))
                             putExtra(AlarmClock.EXTRA_MINUTES, cal.get(Calendar.MINUTE))
                             putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                            // 每日重复（服药计划用）：一周七天全选。
+                            if (daily) {
+                                putExtra(AlarmClock.EXTRA_DAYS,
+                                    arrayListOf(Calendar.SUNDAY, Calendar.MONDAY,
+                                        Calendar.TUESDAY, Calendar.WEDNESDAY,
+                                        Calendar.THURSDAY, Calendar.FRIDAY,
+                                        Calendar.SATURDAY))
+                            }
                         }
                         startActivity(i)
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("alarm", e.message, null)
+                    }
+                }
+                // 按标签撤掉系统闹钟（服药计划改名/删除时用，防旧闹钟残留）。
+                "dismissAlarm" -> {
+                    val title = call.argument<String>("title") ?: ""
+                    try {
+                        val i = Intent(AlarmClock.ACTION_DISMISS_ALARM).apply {
+                            putExtra(AlarmClock.EXTRA_MESSAGE, title)
+                            putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE,
+                                AlarmClock.ALARM_SEARCH_MODE_LABEL)
+                            putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                        }
+                        startActivity(i)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("dismissAlarm", e.message, null)
                     }
                 }
                 "notifySchedule" -> {
@@ -274,6 +275,80 @@ class MainActivity : FlutterActivity() {
                 "setAppLocale" -> {
                     AppLocale.apply(this, call.argument<String>("tag") ?: "")
                     result.success(null)
+                }
+                "alarmDiag" -> {
+                    // 闹钟链路诊断：权限/渠道/下一个闹钟/开关偏好，一次看全。
+                    result.success(alarmDiag())
+                }
+                "restart" -> {
+                    restartApp()
+                    result.success(null)
+                }
+                "factoryReset" -> {
+                    // Dart 侧已先清内存库；这里撤通知、删数据文件与偏好，再重启回首启协议页。
+                    factoryResetLocal()
+                    restartApp()
+                    result.success(null)
+                }
+                "requestExactAlarm" -> {
+                    // 精确闹钟授权：国产 ROM 常默认关，跳系统「闹钟和提醒」页让用户开。
+                    if (Build.VERSION.SDK_INT >= 31) {
+                        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                        if (!am.canScheduleExactAlarms()) {
+                            try {
+                                startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                    result.success(null)
+                }
+                "requestCalendar" -> {
+                    // 日历权限手动申请入口（开发者模式日程测试用）。
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(Manifest.permission.WRITE_CALENDAR, Manifest.permission.READ_CALENDAR),
+                        211
+                    )
+                    result.success(null)
+                }
+                "openChannelSettings" -> {
+                    // 直达系统通知渠道设置页：用户可检查渠道是否被关静音/ importance 被降级。
+                    try {
+                        startActivity(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                            putExtra(Settings.EXTRA_CHANNEL_ID, ReminderAlarm.CHANNEL_NOTIFY)
+                        })
+                    } catch (_: Exception) {
+                        try {
+                            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                            })
+                        } catch (_: Exception) {
+                        }
+                    }
+                    result.success(null)
+                }
+                "ensureReminderPerms" -> {
+                    // 服药计划保存时主动绑定：通知 + 日历权限一次申请，
+                    // 已授予的会自动跳过，被拒过的由系统决定是否再弹。
+                    val need = ArrayList<String>()
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                            != PackageManager.PERMISSION_GRANTED) {
+                        need.add(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
+                        != PackageManager.PERMISSION_GRANTED) {
+                        need.add(Manifest.permission.WRITE_CALENDAR)
+                        need.add(Manifest.permission.READ_CALENDAR)
+                    }
+                    if (need.isNotEmpty()) {
+                        ActivityCompat.requestPermissions(this, need.toTypedArray(), 2101)
+                        result.success(false)
+                    } else {
+                        result.success(true)
+                    }
                 }
                 "calendarToday" -> {
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
@@ -323,19 +398,6 @@ class MainActivity : FlutterActivity() {
                         result.error("import", e.message, null)
                     }
                 }
-                "pickBootSound" -> {
-                    pendingResult = result
-                    try {
-                        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "audio/*"
-                        }
-                        startActivityForResult(i, 9997)
-                    } catch (e: Exception) {
-                        pendingResult = null
-                        result.error("pickBootSound", e.message, null)
-                    }
-                }
                 else -> result.notImplemented()
             }
         }
@@ -343,13 +405,44 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Android 13+ 通知权限：进 App 即请求，拒绝只影响悬浮提醒，不影响其他功能。
+        // 通知 + 日历权限：进 App 即一次性请求（通知运行时权限仅 Android 13+），
+        // 保存服药计划后日历写入与到点提醒立即可用，不必等保存时才弹窗。
+        val need = ArrayList<String>()
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2101)
+            need.add(Manifest.permission.POST_NOTIFICATIONS)
         }
-        try { startOngoing() } catch (_: Exception) {}
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            need.add(Manifest.permission.WRITE_CALENDAR)
+            need.add(Manifest.permission.READ_CALENDAR)
+        }
+        if (need.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, need.toTypedArray(), 2101)
+        }
+        // 常驻保活通知：跟随设置开关（默认开）。用户关掉「常驻悬浮窗」就不再常驻。
+        if (getSharedPreferences("start_prefs", MODE_PRIVATE).getBoolean("keep_alive", true)) {
+            try { startOngoing() } catch (_: Exception) {}
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // 日历权限到手：补写此前因无权限而排队的事件（保存计划时被暂存的那些）。
+        if (requestCode == 2101 || requestCode == 211) {
+            if (pendingCalEvents.isNotEmpty() &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
+                    == PackageManager.PERMISSION_GRANTED) {
+                val list = ArrayList(pendingCalEvents)
+                pendingCalEvents.clear()
+                for ((t, ms) in list) insertCalendarEvent(t, ms)
+            }
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -387,22 +480,6 @@ class MainActivity : FlutterActivity() {
             } else {
                 r?.success(null)
             }
-        } else if (requestCode == 9997) {
-            // 开机铃声：把所选音频复制到 filesDir/boot_sound.mp3
-            val r = pendingResult
-            pendingResult = null
-            var ok = false
-            if (resultCode == RESULT_OK && data?.data != null) {
-                try {
-                    contentResolver.openInputStream(data.data!!)?.use { ins ->
-                        java.io.File(filesDir, "boot_sound.mp3").outputStream().use { os ->
-                            ins.copyTo(os)
-                        }
-                    }
-                    ok = true
-                } catch (_: Exception) {}
-            }
-            r?.success(ok)
         }
         super.onActivityResult(requestCode, resultCode, data)
     }
@@ -413,32 +490,6 @@ class MainActivity : FlutterActivity() {
             try { it.release() } catch (_: Exception) {}
         }
         chime = null
-    }
-
-    /** 自定义开机铃声：优先播放 filesDir/boot_sound.mp3；文件不存在时回退内置提示音。 */
-    private fun playBoot(f: java.io.File, volume: Float) {
-        stopBoot()
-        try {
-            boot = if (f.exists()) MediaPlayer().apply {
-                setDataSource(f.absolutePath)
-                setVolume(volume, volume)
-                setOnCompletionListener { mp -> try { mp.release() } catch (_: Exception) {}; boot = null }
-                prepare()
-                start()
-            } else MediaPlayer.create(this, R.raw.finish_chime)?.apply {
-                setVolume(volume, volume)
-                setOnCompletionListener { mp -> try { mp.release() } catch (_: Exception) {}; boot = null }
-                start()
-            }
-        } catch (_: Exception) {}
-    }
-
-    private fun stopBoot() {
-        boot?.let {
-            try { if (it.isPlaying) it.stop() } catch (_: Exception) {}
-            try { it.release() } catch (_: Exception) {}
-        }
-        boot = null
     }
 
     /**
@@ -497,19 +548,78 @@ class MainActivity : FlutterActivity() {
 
     /** 常驻保活通知：IMPORTANCE_MIN 静默、不可滑动清除，降低后台被系统误杀概率。 */
     private fun startOngoing() {
+        // 渠道名与文案走本地化 context，跟随应用内语言（跟随系统时即系统语言）。
+        val lctx = AppLocale.wrap(this)
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
-            NotificationChannel(ReminderAlarm.CHANNEL_ONGOING, getString(R.string.ongoing_channel), NotificationManager.IMPORTANCE_MIN))
+            NotificationChannel(ReminderAlarm.CHANNEL_ONGOING, lctx.getString(R.string.ongoing_channel), NotificationManager.IMPORTANCE_MIN))
         val pi = PendingIntent.getActivity(this, 0,
             packageManager.getLaunchIntentForPackage(packageName),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         nm.notify(ReminderAlarm.ONGOING_ID, Notification.Builder(this, ReminderAlarm.CHANNEL_ONGOING)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Start")
-            .setContentText(getString(R.string.ongoing_text))
+            .setContentText(lctx.getString(R.string.ongoing_text))
             .setOngoing(true)
             .setContentIntent(pi)
             .build())
+    }
+
+    /**
+     * 闹钟链路诊断：通知权限、渠道状态（用户可能在系统设置里关了渠道声音）、
+     * 下一个已排闹钟（nextAlarmClock 只看 setAlarmClock，正好就是我们的提醒）、开关偏好。
+     */
+    private fun alarmDiag(): Map<String, Any?> {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val sp = getSharedPreferences("start_prefs", MODE_PRIVATE)
+        val notifPerm = Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+        val ch = try { nm.getNotificationChannel(ReminderAlarm.CHANNEL_NOTIFY) } catch (_: Exception) { null }
+        val next = try { am.nextAlarmClock } catch (_: Exception) { null }
+        return mapOf(
+            "notifPermission" to notifPerm,
+            "notificationsEnabled" to nm.areNotificationsEnabled(),
+            "channelExists" to (ch != null),
+            "channelImportance" to (ch?.importance ?: -1),
+            "notifyOn" to sp.getBoolean("notify_on", true),
+            "keepAlive" to sp.getBoolean("keep_alive", true),
+            "nextAlarmAt" to (next?.triggerTime ?: 0L),
+            // 闹钟触发记录（ReminderReceiver 落笔）：>0 说明闹钟本体到点触发过。
+            "lastFire" to sp.getLong("last_alarm_fire", 0L),
+            "lastLabel" to (sp.getString("last_alarm_label", "") ?: ""),
+            // >0 说明触发了但被通知权限拦下。
+            "lastBlocked" to sp.getLong("last_alarm_blocked", 0L)
+        )
+    }
+
+    /** 强制重启：用 setAlarmClock（免权限、最准）在 400ms 后拉起启动页，随后杀进程。 */
+    private fun restartApp() {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            val pi = PendingIntent.getActivity(this, 424242, intent,
+                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            am.setAlarmClock(AlarmManager.AlarmClockInfo(System.currentTimeMillis() + 400, pi), pi)
+        } catch (_: Exception) {
+        }
+        android.os.Handler(mainLooper).postDelayed({
+            kotlin.system.exitProcess(0)
+        }, 250)
+    }
+
+    /** 恢复出厂本地部分：撤掉全部已发通知，删数据文件与各偏好文件。 */
+    private fun factoryResetLocal() {
+        try {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
+        } catch (_: Exception) {
+        }
+        try { File(filesDir, "start_items.json").delete() } catch (_: Exception) {}
+        try { File(filesDir, "start_items.json.tmp").delete() } catch (_: Exception) {}
+        for (name in listOf("start_prefs", "FlutterSharedPreferences")) {
+            try { getSharedPreferences(name, MODE_PRIVATE).edit().clear().commit() } catch (_: Exception) {}
+        }
     }
 
     /** 词级分词：BreakIterator ICU 词典，剥掉首尾标点，移植自老版 BigBangOverlay。 */
@@ -529,6 +639,43 @@ class MainActivity : FlutterActivity() {
             end = bi.next()
         }
         return out
+    }
+
+    /** 写入手机日历，返回 eventId（0=失败/无可写日历）。调用方需已持有 WRITE_CALENDAR。 */
+    private fun insertCalendarEvent(title: String, ms: Long): Int {
+        return try {
+            // 取第一个可写日历（贡献者权限以上）。
+            var calId = -1L
+            contentResolver.query(
+                CalendarContract.Calendars.CONTENT_URI,
+                arrayOf(
+                    CalendarContract.Calendars._ID,
+                    CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL
+                ),
+                "${CalendarContract.Calendars.VISIBLE} = 1", null,
+                "${CalendarContract.Calendars._ID} ASC"
+            )?.use { cur ->
+                while (cur.moveToNext()) {
+                    // CALENDAR_ACCESS_LEVEL >= CONTRIBUTOR(500) 才可写。
+                    if (cur.getInt(1) >= 500) {
+                        calId = cur.getLong(0)
+                        break
+                    }
+                }
+            }
+            if (calId <= 0) return 0
+            val cv = ContentValues().apply {
+                put(CalendarContract.Events.CALENDAR_ID, calId)
+                put(CalendarContract.Events.TITLE, title)
+                put(CalendarContract.Events.DTSTART, ms)
+                put(CalendarContract.Events.DTEND, ms + 60 * 60 * 1000)
+                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+            }
+            val uri = contentResolver.insert(CalendarContract.Events.CONTENT_URI, cv)
+            uri?.lastPathSegment?.toLongOrNull()?.toInt() ?: 0
+        } catch (_: Exception) {
+            0
+        }
     }
 
     /** 读取今日手机日历事件（移植自老版 Cal.today）。返回 {id,title,begin,end,calName} 列表。 */
@@ -594,6 +741,29 @@ class VoiceChannel(private val ctx: Context, messenger: io.flutter.plugin.common
             when (call.method) {
                 "start" -> { start(call.argument<Boolean>("online") == true); result.success(null) }
                 "stop" -> { stop(); result.success(null) }
+                // 在线语音测试：枚举本机引擎 + 测在线识别可用性
+                "testOnline" -> {
+                    val engines = ctx.packageManager.queryIntentServices(
+                        Intent(RecognitionService.SERVICE_INTERFACE), 0
+                    ).map { it.serviceInfo.packageName }
+                    val available = SpeechRecognizer.isRecognitionAvailable(ctx)
+                    result.success(mapOf(
+                        "engines" to engines,
+                        "available" to available,
+                        "onDevice" to (Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx))
+                    ))
+                }
+                // 离线引擎（Vosk）走 Dart 侧插件，不经过 VoiceChannel，权限需单独确保。
+                "ensureMic" -> {
+                    if (micGranted()) {
+                        result.success(true)
+                    } else {
+                        (ctx as? MainActivity)?.let {
+                            ActivityCompat.requestPermissions(it, arrayOf(Manifest.permission.RECORD_AUDIO), 200)
+                        }
+                        result.success(false)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

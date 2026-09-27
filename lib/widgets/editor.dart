@@ -285,20 +285,14 @@ class _EditorSheetState extends State<_EditorSheet> {
                 } else {
                   await StartStore.I.put(it);
                   // 新建日程给个落点反馈：今天的直接进清单，未来的到那天自然出现。
+                  // 写入日历 / 设系统闹钟由用户点上方对应 chip 自行决定，不静默代劳。
                   if (widget.asSchedule) {
-                    // 自动写入手机日历 + 自动设系统闹钟（静默，不跳应用）。
-                    final evId = await Native.calendarInsert(it.alarmLabel, it.dueTime);
-                    if (evId > 0) {
-                      it.eventId = evId;
-                      await StartStore.I.put(it);
-                    }
-                    Native.setAlarm(it.alarmLabel, it.dueTime);
                     StartApp.messengerKey.currentState?.showSnackBar(
                       SnackBar(
                         behavior: SnackBarBehavior.floating,
                         backgroundColor: Colors.black87,
                         duration: const Duration(seconds: 2),
-                        content: Text(tr('已排进 {0}，日历和闹钟都设好了', [_fmtDue(it.dueTime)]),
+                        content: Text(tr('已排进 {0}', [_fmtDue(it.dueTime)]),
                             style: const TextStyle(color: Colors.white)),
                       ),
                     );
@@ -400,13 +394,14 @@ class _Chip extends StatelessWidget {
 
 /// 日程多行批量写入：先换行写好几件日程，再选一个共同的日期时间，一次全部排进去。
 /// 与全局速记同一拆分规则（按行与句末标点自动拆开）。
+/// 写入日历 / 设系统闹钟为可选项：输入弹层里点亮对应 chip 才会执行。
 Future<void> showScheduleBatch(BuildContext context) async {
   final ctl = TextEditingController();
-  final titles = await showStartSheet<List<String>>(
+  final plan = await showStartSheet<_BatchPlan>(
     context,
     (_) => _ScheduleBatchInput(ctl: ctl),
   );
-  if (titles == null || titles.isEmpty || !context.mounted) return;
+  if (plan == null || plan.titles.isEmpty || !context.mounted) return;
   final now = DateTime.now();
   final d = await showStartDatePicker(context, initial: now);
   if (d == null || !context.mounted) return;
@@ -414,23 +409,33 @@ Future<void> showScheduleBatch(BuildContext context) async {
   if (t == null || !context.mounted) return;
   final due = DateTime(d.year, d.month, d.day, t.hour, t.minute).millisecondsSinceEpoch;
   final created = DateTime.now().millisecondsSinceEpoch;
-  for (var i = 0; i < titles.length; i++) {
-    final it = Item(kind: Item.kindTask, title: titles[i], dueTime: due, alarm: true, created: created + i);
-    // 自动写入手机日历 + 自动设系统闹钟（静默，不跳应用）。
-    final evId = await Native.calendarInsert(it.alarmLabel, due);
-    if (evId > 0) it.eventId = evId;
+  for (var i = 0; i < plan.titles.length; i++) {
+    final it = Item(kind: Item.kindTask, title: plan.titles[i], dueTime: due, alarm: true, created: created + i);
+    // 可选项：用户点亮了才写入日历 / 设系统闹钟。
+    if (plan.calendar) {
+      final evId = await Native.calendarInsert(it.alarmLabel, due);
+      if (evId > 0) it.eventId = evId;
+    }
     await StartStore.I.put(it);
-    Native.setAlarm(it.alarmLabel, due);
+    if (plan.alarm) Native.setAlarm(it.alarmLabel, due);
   }
   StartApp.messengerKey.currentState?.showSnackBar(
     SnackBar(
       behavior: SnackBarBehavior.floating,
       backgroundColor: Colors.black87,
       duration: const Duration(seconds: 2),
-      content: Text(tr('{0} 件日程排进 {1}，日历和闹钟都设好了', [titles.length, _fmtDueShort(due)]),
+      content: Text(tr('{0} 件日程排进 {1}', [plan.titles.length, _fmtDueShort(due)]),
           style: const TextStyle(color: Colors.white)),
     ),
   );
+}
+
+/// 批量日程的选项载荷：标题列表 + 是否写入日历 / 设系统闹钟。
+class _BatchPlan {
+  final List<String> titles;
+  final bool calendar;
+  final bool alarm;
+  const _BatchPlan(this.titles, {this.calendar = false, this.alarm = false});
 }
 
 String _fmtDueShort(int ms) {
@@ -445,9 +450,17 @@ String _fmtDueShort(int ms) {
   return '${d.month}/${d.day} $hm';
 }
 
-class _ScheduleBatchInput extends StatelessWidget {
+class _ScheduleBatchInput extends StatefulWidget {
   final TextEditingController ctl;
   const _ScheduleBatchInput({required this.ctl});
+
+  @override
+  State<_ScheduleBatchInput> createState() => _ScheduleBatchInputState();
+}
+
+class _ScheduleBatchInputState extends State<_ScheduleBatchInput> {
+  bool _calendar = false;
+  bool _alarm = false;
 
   @override
   Widget build(BuildContext context) {
@@ -460,7 +473,7 @@ class _ScheduleBatchInput extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
-            controller: ctl,
+            controller: widget.ctl,
             autofocus: true,
             minLines: 1,
             maxLines: 6,
@@ -477,8 +490,29 @@ class _ScheduleBatchInput extends StatelessWidget {
                 style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
           ),
           const SizedBox(height: S.sm),
+          // 可选项：点亮后这批日程会同时写入手机日历 / 设进系统闹钟。
+          Wrap(
+            spacing: S.xs,
+            runSpacing: S.xs,
+            children: [
+              _optChip(c,
+                  label: tr('写入日历'),
+                  icon: Icons.calendar_today_outlined,
+                  on: _calendar,
+                  onTap: () => setState(() => _calendar = !_calendar)),
+              _optChip(c,
+                  label: tr('系统闹钟'),
+                  icon: Icons.alarm_outlined,
+                  on: _alarm,
+                  onTap: () => setState(() => _alarm = !_alarm)),
+            ],
+          ),
+          const SizedBox(height: S.sm),
           Pressable(
-            onTap: () => Navigator.pop(context, splitIntoLines(ctl.text)),
+            onTap: () => Navigator.pop(
+                context,
+                _BatchPlan(splitIntoLines(widget.ctl.text),
+                    calendar: _calendar, alarm: _alarm)),
             child: Container(
               height: 48,
               alignment: Alignment.center,
@@ -487,6 +521,34 @@ class _ScheduleBatchInput extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 可开关的小胶囊：点亮=番茄红底白字。
+  Widget _optChip(C c,
+      {required String label,
+      required IconData icon,
+      required bool on,
+      required VoidCallback onTap}) {
+    return Pressable(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: S.sm, vertical: S.xs),
+        decoration: BoxDecoration(
+          color: on ? c.accent : c.cardAlt,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: on ? Colors.white : c.ink),
+            const SizedBox(width: S.xxs),
+            Text(label,
+                style: TextStyle(
+                    color: on ? Colors.white : c.ink, fontSize: S.textSm)),
+          ],
+        ),
       ),
     );
   }

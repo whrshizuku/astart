@@ -8,10 +8,11 @@ import '../theme/tokens.dart';
 import '../widgets/ui.dart';
 import '../l10n/i18n.dart';
 
-/// 长按「动手吧」唤起的语音面板。默认系统离线引擎（不联网）；
-/// 用户在设置开启「在线语音」后允许在线识别。
+/// 长按「动手吧」唤起的语音面板。默认 Vosk 离线引擎（不联网、不挑本机引擎）；
+/// 用户在设置开启「在线语音」后改用系统引擎在线识别（更准但走网络）。
 ///
 /// 返回 {'action': 'dump'|'ai', 'text': 识别全文}；取消返回 null。
+/// dump 由调用方按 splitIntoLines 整批拆条入库，不再回输入框复核。
 Future<Map<String, dynamic>?> showVoiceSheet(BuildContext context) {
   return showModalBottomSheet<Map<String, dynamic>>(
     context: context,
@@ -40,6 +41,10 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
   Timer? _restart;
   late final AnimationController _pulse;
 
+  /// 在线开关：开=系统引擎在线识别（更准）；关=系统引擎离线优先（EXTRA_PREFER_OFFLINE）。
+  /// 离线优先：走系统引擎 + EXTRA_PREFER_OFFLINE（华为/小米/OPPO/vivo/荣耀等内置离线引擎）。
+  /// 在线语音开关：开=系统在线识别（更准），关=系统离线识别（不联网）。
+  bool get _online => StartStore.I.prefBool('voice_online', false);
   bool get _aiReady => StartStore.I.prefBool('ai_on', false);
 
   String get _text => [..._parts, if (_partial.isNotEmpty) _partial].join('，');
@@ -56,9 +61,8 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
   }
 
   Future<void> _begin() async {
-    await SystemVoice.start(
-      online: StartStore.I.prefBool('voice_online', false),
-    );
+    // 在线/离线都走系统引擎，离线时加 EXTRA_PREFER_OFFLINE 优先本机引擎。
+    await SystemVoice.start(online: _online);
   }
 
   /// 一句说完后自动续听（停顿/无匹配/引擎忙都静默重开），直到用户手动结束。
@@ -109,11 +113,15 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
     }
   }
 
+  Future<void> _stopEngine() async {
+    await SystemVoice.stop();
+  }
+
   Future<void> _finish(String action) async {
     if (_closing) return;
     _closing = true;
     _restart?.cancel();
-    await SystemVoice.stop();
+    await _stopEngine();
     if (!mounted) return;
     Navigator.pop(context, {'action': action, 'text': _text});
   }
@@ -122,7 +130,7 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
     if (_closing) return;
     _closing = true;
     _restart?.cancel();
-    await SystemVoice.stop();
+    await _stopEngine();
     if (!mounted) return;
     Navigator.pop(context);
   }
@@ -133,7 +141,7 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
     _sub?.cancel();
     _pulse.dispose();
     // 非正常退出（下滑关 sheet）也要停麦。
-    SystemVoice.stop();
+    _stopEngine();
     super.dispose();
   }
 
@@ -170,7 +178,10 @@ class _VoiceSheetState extends State<_VoiceSheet> with TickerProviderStateMixin 
                   _PulsingMic(pulse: _pulse, color: c.accent),
                   const SizedBox(width: S.sm),
                   Flexible(
-                    child: Text(_error.isEmpty ? tr('正在听，说完自动续听') : tr('没在听'),
+                    child: Text(
+                        _error.isNotEmpty
+                            ? _error
+                            : tr('正在听，说完自动续听'),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,

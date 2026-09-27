@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'ai/assist.dart';
+import 'data/item.dart';
 import 'data/store.dart';
 import 'channels/native.dart';
 import 'screens/dump.dart';
 import 'screens/focus.dart';
 import 'screens/home.dart';
 import 'screens/manual.dart';
-import 'screens/search.dart';
+import 'screens/med.dart';
 import 'screens/segment_screen.dart';
 import 'screens/splash.dart';
 import 'screens/stats.dart';
@@ -18,7 +18,6 @@ import 'screens/steps.dart';
 import 'theme/tokens.dart';
 import 'utils/update_checker.dart';
 import 'widgets/ui.dart';
-import 'widgets/voice_sheet.dart';
 import 'l10n/i18n.dart';
 
 Future<void> main() async {
@@ -34,6 +33,9 @@ Future<void> main() async {
   await StartStore.I.init();
   Lang.current = Lang.resolve();
   runApp(const StartApp());
+  // 冷启动重挂全部闹钟：滑掉卡片/强停会清空 AlarmManager，不重挂就永远不响。
+  // 放 runApp 之后异步执行，不阻塞首屏。
+  StartStore.I.rearmAll();
 }
 
 class StartApp extends StatefulWidget {
@@ -216,6 +218,7 @@ class GlobalDragDock {
   }
 
   static Future<void> handleTrash(int id) async {
+    if (id <= 0) return;
     final s = StartStore.I;
     // 多选整批拖入：一次删除、一次撤销（防误删 6 秒窗口由 UndoHost 保证）。
     final ids = DragDockBus.pendingIds;
@@ -286,12 +289,12 @@ class Root extends StatefulWidget {
 }
 
 /// 主骨架：首页是主体（老版 TodayScreen），底栏 5 键切换 section。
-/// 底栏：搜索 · 捋一捋 · 动手吧 · 专注 · 统计。
+/// 底栏：服药 · 捋一捋 · 动手吧 · 专注 · 统计。搜索在首页顶栏设置左侧。
 /// body 内嵌一个 Navigator：首页是其根路由，section 页推到该嵌套 navigator
 /// （只占 body 区，Scaffold.bottomNavigationBar 始终常驻——老版 selectNav 行为）。
 /// 点键后该键保持番茄红，持续到另一个键被点击。切换 section 用 pushReplacement 防栈堆积。
 class _RootState extends State<Root> {
-  /// 最后按下的底栏键索引：0念头 1捋一捋 2功能键 3专注 4统计。-1=未按过（在首页）。
+  /// 最后按下的底栏键索引：0服药 1捋一捋 2功能键 3专注 4统计。-1=未按过（在首页）。
   int _last = -1;
   final GlobalKey _funcKey = GlobalKey();
   final GlobalKey<NavigatorState> _bodyNav = GlobalKey<NavigatorState>();
@@ -324,75 +327,9 @@ class _RootState extends State<Root> {
   /// 短按功能键 = 动手吧(速记倒进来)文字输入。
   void _openDumpText() => _goto(const DumpScreen(), 2);
 
-  /// 长按功能键 = 语音速记。识别完进动手吧输入条复核；开了 AI 可直接整批结构化入库。
-  Future<void> _startVoice() async {
-    final r = await showVoiceSheet(context);
-    if (r == null) return;
-    final text = (r['text'] as String? ?? '').trim();
-    if (text.isEmpty) return;
-    if (r['action'] == 'ai' && AiConfig.ready) {
-      await _runAiOrganize(text);
-    } else {
-      _goto(DumpScreen(initial: text), 2);
-    }
-  }
+  /// 语音速记功能暂时移除，后续版本再上线。AI 接口保留在开发者模式中测试。
 
-  /// 语音 → AI 解析 → 整批落库，带 loading 与整批撤销。
-  Future<void> _runAiOrganize(String text) async {
-    final ctx = StartApp.navigatorKey.currentContext;
-    if (ctx == null) return;
-    unawaited(showDialog<void>(
-      context: ctx,
-      barrierDismissible: false,
-      builder: (_) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(S.lg),
-          decoration: BoxDecoration(
-            color: ThemeTokens.of(ctx).card,
-            borderRadius: BorderRadius.circular(S.radius),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 26,
-                height: 26,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2.5, color: ThemeTokens.of(ctx).accent),
-              ),
-              const SizedBox(height: S.sm),
-              Text(tr('AI 正在整理…'),
-                  style: TextStyle(
-                      fontSize: S.textSm, color: ThemeTokens.of(ctx).inkSoft)),
-            ],
-          ),
-        ),
-      ),
-    ));
-    try {
-      final result = await Assistant.handle(text);
-      final mctx = StartApp.navigatorKey.currentContext;
-      if (mctx != null && mctx.mounted) Navigator.of(mctx, rootNavigator: true).pop();
-      if (result.count == 0) {
-        StartApp.messengerKey.currentState
-            ?.showSnackBar(SnackBar(content: Text(tr('没听出要做的事，换个说法试试'))));
-        return;
-      }
-      final uctx = StartApp.navigatorKey.currentContext;
-      if (uctx != null && uctx.mounted) {
-        UndoHost.show(uctx, tr('AI 整理了 {0} 条', [result.count]),
-            () async => StartStore.I.restoreJson(result.snapshot));
-      }
-    } catch (e) {
-      final mctx = StartApp.navigatorKey.currentContext;
-      if (mctx != null && mctx.mounted) Navigator.of(mctx, rootNavigator: true).pop();
-      StartApp.messengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text(tr('AI 没连上：{0}', [e]))),
-      );
-    }
-  }
-
-  void _openSearch() => _goto(const SearchScreen(), 0);
+  void _openMed() => _goto(const MedScreen(), 0);
   void _openSegment() => _goto(const SegmentScreen(), 1);
   void _openFocus() => _goto(const FocusScreen(showBack: true), 3);
   void _openStats() => _goto(const StatsScreen(), 4);
@@ -429,7 +366,7 @@ class _RootState extends State<Root> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _navKey(c, Icons.search_outlined, _last == 0, _openSearch),
+              _navKey(c, Icons.medication_outlined, _last == 0, _openMed),
               _navKey(c, Icons.alt_route, _last == 1, _openSegment),
               _funcButton,
               _navKey(c, Icons.timer_outlined, _last == 3, _openFocus),
@@ -459,7 +396,8 @@ class _RootState extends State<Root> {
       key: _funcKey,
       behavior: HitTestBehavior.opaque,
       onTap: _openDumpText,
-      onLongPress: _startVoice,
+      // 长按语音速记暂时移除，后续版本再上线
+      onLongPress: _openDumpText,
       child: Container(
         width: 44,
         height: 44,

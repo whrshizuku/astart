@@ -101,7 +101,7 @@ class CloudSettingsScreen extends StatelessWidget {
                 ],
                 const SizedBox(height: S.md),
                 _Note(c,
-                    tr('备份内容为全量数据 JSON，文件名带时间戳，只上传到你自己填的服务器。恢复会覆盖本机全部内容，恢复后可在 6 秒内撤销。不开启、不点按钮就不会联网。')),
+                    tr('备份内容为全量数据 JSON，文件名带时间戳，只上传到你自己填的服务器。恢复会覆盖本机全部内容，恢复后可在 5 秒内撤销。不开启、不点按钮就不会联网。')),
               ],
             ),
           ),

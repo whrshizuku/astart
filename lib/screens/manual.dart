@@ -59,6 +59,11 @@ class FirstRunScreen extends StatelessWidget {
   final VoidCallback onAccept;
   const FirstRunScreen({super.key, required this.onAccept});
 
+  void _openManual(BuildContext context) {
+    Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ManualScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = ThemeTokens.of(context);
@@ -100,20 +105,44 @@ class FirstRunScreen extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(S.md),
-              child: Pressable(
-                onTap: onAccept,
-                child: Container(
-                  height: 48,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                      color: c.accent, borderRadius: BorderRadius.circular(S.radius)),
-                  child: Text(tr('同意并开始'),
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: S.textMd,
-                          fontWeight: FontWeight.bold)),
-                ),
+              padding: const EdgeInsets.fromLTRB(S.md, S.sm, S.md, S.md),
+              child: Column(
+                children: [
+                  // 新用户引导：先看说明书再开始
+                  Pressable(
+                    onTap: () => _openManual(context),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: S.xs),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.menu_book_outlined, size: 18, color: c.accent),
+                          const SizedBox(width: S.xxs),
+                          Text(tr('先看看使用说明'),
+                              style: TextStyle(
+                                  fontSize: S.textSm,
+                                  color: c.accent,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: S.sm),
+                  Pressable(
+                    onTap: onAccept,
+                    child: Container(
+                      height: 48,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          color: c.accent, borderRadius: BorderRadius.circular(S.radius)),
+                      child: Text(tr('同意并开始'),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: S.textMd,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

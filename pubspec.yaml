@@ -14,7 +14,7 @@ publish_to: 'none'
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.2.1+21
+version: 2.3.0+23
 
 environment:
   sdk: ^3.13.4
@@ -32,7 +32,11 @@ dependencies:
   # Vosk 离线语音识别（开源，中文模型，不绑谷歌）
   vosk_flutter: ^0.3.48
 
-  # 检查更新（Gitee Releases API；0.13 与 vosk_flutter 传递依赖一致）
+  # 语音模型 zip 解压 + 路径拼接（手写流式下载）
+  archive: ^3.4.0
+  path: ^1.8.3
+
+  # 检查更新（Gitee Releases API）
   http: ^0.13.6
 
 dependency_overrides:

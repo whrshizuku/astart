@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../channels/native.dart';
 import '../data/store.dart';
@@ -8,6 +8,7 @@ import '../widgets/ui.dart';
 import 'ai_settings.dart';
 import 'cloud_settings.dart';
 import 'manual.dart';
+import 'lab.dart';
 import '../l10n/i18n.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -28,7 +29,7 @@ class SettingsScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(S.md),
           children: [
-            // 返回钮居左、应用 logo 相对整行水平居中。
+            // 返回钮居左、应用名居中（简中显示「启序」，其余语言显示 Start）。
             SizedBox(
               height: 32,
               child: Stack(
@@ -40,8 +41,11 @@ class SettingsScreen extends StatelessWidget {
                         onTap: () => Navigator.pop(context)),
                   ),
                   Center(
-                    child: Image.asset('assets/app_icon.png',
-                        width: 30, height: 30),
+                    child: Text(Lang.appNameOf(Lang.current),
+                        style: TextStyle(
+                            fontSize: S.textLg,
+                            fontWeight: FontWeight.bold,
+                            color: c.ink)),
                   ),
                 ],
               ),
@@ -72,7 +76,7 @@ class SettingsScreen extends StatelessWidget {
             _VolumeTile(),
             _Group(c, label: tr('后台保活')),
             _SwitchTile(
-              title: tr('常驻通知防误杀'),
+              title: tr('常驻悬浮窗'),
               value: s.prefBool('keep_alive', true),
               onChanged: (v) {
                 s.setPref('keep_alive', v);
@@ -89,20 +93,20 @@ class SettingsScreen extends StatelessWidget {
             _ImportTile(),
             _ClearTile(),
             _Group(c, label: tr('扩展（默认关闭，按需开启）')),
+            _NavTile(
+              icon: Icons.psychology_outlined,
+              title: '${tr('AI 助手')}${_previewSuffix()}',
+              onTap: () => Navigator.of(context, rootNavigator: true)
+                  .push(MaterialPageRoute(builder: (_) => const AiSettingsScreen())),
+            ),
             _SwitchTile(
-              title: tr('在线语音识别'),
+              title: '${tr('在线语音识别')}${_previewSuffix()}',
               value: s.prefBool('voice_online', false),
               onChanged: (v) => s.setPref('voice_online', v),
             ),
             _NavTile(
-              icon: Icons.auto_awesome,
-              title: tr('AI 助手'),
-              onTap: () => Navigator.of(context, rootNavigator: true)
-                  .push(MaterialPageRoute(builder: (_) => const AiSettingsScreen())),
-            ),
-            _NavTile(
               icon: Icons.cloud_outlined,
-              title: tr('云备份（WebDAV）'),
+              title: '${tr('云备份（WebDAV）')}${_previewSuffix()}',
               onTap: () => Navigator.of(context, rootNavigator: true)
                   .push(MaterialPageRoute(builder: (_) => const CloudSettingsScreen())),
             ),
@@ -142,30 +146,32 @@ class SettingsScreen extends StatelessWidget {
               title: tr('联系作者'),
               onTap: () => Native.openUrl('mailto:3210819895@qq.com'),
             ),
-            Padding(
-              padding: const EdgeInsets.all(S.sm),
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text('Start',
-                        style: TextStyle(
-                            fontSize: S.textSm,
-                            fontWeight: FontWeight.bold,
-                            color: c.inkSoft,
-                            height: 1.0)),
-                    const SizedBox(width: S.xxs),
-                    if (Lang.current == Lang.zhCN)
-                      Text(tr('启序'),
+            _DevGate(
+              child: Padding(
+                padding: const EdgeInsets.all(S.sm),
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text('Start',
+                          style: TextStyle(
+                              fontSize: S.textSm,
+                              fontWeight: FontWeight.bold,
+                              color: c.inkSoft,
+                              height: 1.0)),
+                      const SizedBox(width: S.xxs),
+                      if (Lang.current == Lang.zhCN)
+                        Text(tr('启序'),
+                            style:
+                                TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
+                      if (Lang.current == Lang.zhCN) const SizedBox(width: S.xxs),
+                      Text(tr('© 2026 王浩然'),
                           style:
                               TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
-                    if (Lang.current == Lang.zhCN) const SizedBox(width: S.xxs),
-                    Text(tr('© 2026 王浩然'),
-                        style:
-                            TextStyle(fontSize: S.textSm, color: c.inkSoft, height: 1.0)),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -176,6 +182,53 @@ class SettingsScreen extends StatelessWidget {
       },
     );
   }
+}
+
+// ---------------- 扩展功能预览标注 ----------------
+
+/// 预览后缀：按当前界面语言返回「（预览）」本地化文案。
+String _previewSuffix() {
+  switch (Lang.current) {
+    case Lang.zhTW:
+      return '（預覽）';
+    case Lang.en:
+      return ' (Preview)';
+    case Lang.ja:
+      return '（プレビュー）';
+    default:
+      return '（预览）';
+  }
+}
+
+// ---------------- 开发者入口（版权行五击） ----------------
+
+class _DevGate extends StatefulWidget {
+  final Widget child;
+  const _DevGate({required this.child});
+
+  @override
+  State<_DevGate> createState() => _DevGateState();
+}
+
+class _DevGateState extends State<_DevGate> {
+  int _taps = 0;
+  DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void _tap() {
+    // 版权行五击直接进开发者模式（无开关）。
+    final now = DateTime.now();
+    _taps = now.difference(_last).inMilliseconds < 1200 ? _taps + 1 : 1;
+    _last = now;
+    if (_taps >= 5) {
+      _taps = 0;
+      Navigator.of(context, rootNavigator: true)
+          .push(MaterialPageRoute(builder: (_) => const LabScreen()));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      GestureDetector(behavior: HitTestBehavior.opaque, onTap: _tap, child: widget.child);
 }
 
 // ---------------- 基础件 ----------------
@@ -279,63 +332,41 @@ class _LangTile extends StatelessWidget {
     final c = ThemeTokens.of(context);
     final s = StartStore.I;
     final cur = s.prefStr(Lang.prefKey, Lang.system);
-    final curName =
-        Lang.options.firstWhere((o) => o.$1 == cur, orElse: () => Lang.options.first).$2;
     return _Row(
-      child: Pressable(
-        onTap: () => _pick(context),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(tr('界面语言'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: S.textMd, color: c.ink)),
-            ),
-            Flexible(
-              child: Text(curName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
-            ),
-            Icon(Icons.chevron_right, size: 20, color: c.inkSoft),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pick(BuildContext context) async {
-    final s = StartStore.I;
-    final c = ThemeTokens.of(context);
-    final cur = s.prefStr(Lang.prefKey, Lang.system);
-    await showStartDialog<void>(
-      context,
-      title: tr('界面语言'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final o in Lang.options)
-            RadioListTile<String>(
-              value: o.$1,
-              groupValue: cur,
-              activeColor: c.accent,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.trailing,
-              title: Text(o.$2),
-              onChanged: (v) async {
-                Navigator.pop(context);
-                if (v != null) await Lang.choose(v);
-              },
-            ),
+          Text(tr('界面语言'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: S.textMd, color: c.ink)),
+          const SizedBox(height: S.xs),
+          Wrap(
+            spacing: S.xs,
+            runSpacing: S.xs,
+            children: [
+              for (final o in Lang.options)
+                Pressable(
+                  onTap: () => Lang.choose(o.$1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: S.sm, vertical: S.xxs),
+                    decoration: BoxDecoration(
+                      color: cur == o.$1 ? c.accent : c.cardAlt,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(o.$2,
+                        style: TextStyle(
+                            fontSize: S.textSm,
+                            fontWeight: FontWeight.bold,
+                            color: cur == o.$1 ? Colors.white : c.ink)),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
-      actions: (dctx) => [
-        TextButton(
-            onPressed: () => Navigator.pop(dctx),
-            child: Text(tr('取消'), style: TextStyle(color: c.inkSoft))),
-      ],
     );
   }
 }
