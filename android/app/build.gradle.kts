@@ -23,7 +23,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.ndstart.app"
+        applicationId = "whr.ndstart.cn"
         minSdk = 29
         targetSdk = 34
         versionCode = 23
