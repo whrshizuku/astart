@@ -672,20 +672,41 @@ class _UpdateTileState extends State<_UpdateTile> {
     final r = await UpdateChecker.check();
     if (!mounted) return;
     setState(() => _checking = false);
+    final c = ThemeTokens.of(context);
+    // 与启动时的自动更新提示同一风格（showStartDialog），不再是黑色提示条。
     if (r == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(tr('已是最新版'))),
+      await showStartDialog<void>(
+        context,
+        title: tr('已是最新版'),
+        actions: (dctx) => [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx),
+            child: Text(tr('好'),
+                style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
+          ),
+        ],
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('发现新版本 v{0}', [r.version])),
-          action: r.url.isNotEmpty
-              ? SnackBarAction(
-                  label: tr('下载'), onPressed: () => Native.openUrl(r.url))
-              : null,
-        ),
+      await showStartDialog<void>(
+        context,
+        title: tr('发现新版本 v{0}', [r.version]),
+        content: Text(tr('去仓库下载最新安装包'),
+            style: TextStyle(color: c.inkSoft, fontSize: S.textMd)),
+        actions: (dctx) => [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx),
+            child: Text(tr('忽略'), style: TextStyle(color: c.inkSoft)),
+          ),
+          if (r.url.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dctx);
+                Native.openUrl(r.url);
+              },
+              child: Text(tr('下载'),
+                  style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
+            ),
+        ],
       );
     }
   }

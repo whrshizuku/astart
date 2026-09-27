@@ -94,6 +94,14 @@ class AppThemes {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
       ),
       bottomSheetTheme: const BottomSheetThemeData(backgroundColor: Colors.transparent),
+      // 全局提示条统一应用风格：卡片底 + 墨色文字 + 番茄红动作，不再是系统黑条。
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: c.card,
+        contentTextStyle: TextStyle(color: c.ink, fontSize: S.textMd),
+        actionTextColor: c.accent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
+      ),
     );
   }
 

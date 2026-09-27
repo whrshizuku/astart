@@ -62,29 +62,25 @@ class _StartAppState extends State<StartApp> {
     final ctx = StartApp.navigatorKey.currentContext;
     if (ctx == null || !ctx.mounted) return;
     final c = ThemeTokens.of(ctx);
-    await showDialog<void>(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        backgroundColor: c.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(S.radius)),
-        title: Text(tr('发现新版本 v{0}', [u.version]),
-            style: TextStyle(color: c.ink, fontSize: S.textLg, fontWeight: FontWeight.bold)),
-        content: Text(tr('去仓库下载最新安装包'),
-            style: TextStyle(color: c.inkSoft, fontSize: S.textMd)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(tr('忽略'), style: TextStyle(color: c.inkSoft)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Native.openUrl(u.url);
-            },
-            child: Text(tr('下载'), style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+    // 统一对话框风格（showStartDialog）：卡片底圆角，按钮用 dctx 关闭。
+    await showStartDialog<void>(
+      ctx,
+      title: tr('发现新版本 v{0}', [u.version]),
+      content: Text(tr('去仓库下载最新安装包'),
+          style: TextStyle(color: c.inkSoft, fontSize: S.textMd)),
+      actions: (dctx) => [
+        TextButton(
+          onPressed: () => Navigator.pop(dctx),
+          child: Text(tr('忽略'), style: TextStyle(color: c.inkSoft)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dctx);
+            Native.openUrl(u.url);
+          },
+          child: Text(tr('下载'), style: TextStyle(color: c.accent, fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 

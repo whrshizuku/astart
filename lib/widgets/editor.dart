@@ -202,13 +202,9 @@ class _EditorSheetState extends State<_EditorSheet> {
                         await StartStore.I.put(it);
                         StartApp.messengerKey.currentState?.showSnackBar(
                           SnackBar(
-                            behavior: SnackBarBehavior.floating,
-                            backgroundColor: Colors.black87,
-                            content: Text(tr('已写入手机日历，到点它自己会提醒'),
-                                style: TextStyle(color: Colors.white)),
+                            content: Text(tr('已写入手机日历，到点它自己会提醒')),
                             action: SnackBarAction(
                               label: tr('好'),
-                              textColor: const Color(0xFFFF6347),
                               onPressed: () {},
                             ),
                           ),
@@ -264,18 +260,12 @@ class _EditorSheetState extends State<_EditorSheet> {
                 it.note = _note.text.trim();
                 // 新建日程：没有标题或没选日期时间，不保存、不关闭，更不会流落随手做。
                 if (widget.asSchedule && (it.title.isEmpty || it.dueTime == 0)) {
+                  // 校验失败提示保留（走全局 snackBarTheme，与应用风格一致）。
                   StartApp.messengerKey.currentState?.showSnackBar(
                     SnackBar(
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.black87,
-                      content: Text(
-                          it.title.isEmpty ? tr('先写一句日程内容') : tr('选个日期和时间，才算一条日程'),
-                          style: const TextStyle(color: Colors.white)),
-                      action: SnackBarAction(
-                        label: tr('好'),
-                        textColor: const Color(0xFFFF6347),
-                        onPressed: () {},
-                      ),
+                      content: Text(it.title.isEmpty
+                          ? tr('先写一句日程内容')
+                          : tr('选个日期和时间，才算一条日程')),
                     ),
                   );
                   return;
@@ -283,20 +273,9 @@ class _EditorSheetState extends State<_EditorSheet> {
                 if (it.isEmpty) {
                   StartStore.I.delete(it.id);
                 } else {
-                  await StartStore.I.put(it);
-                  // 新建日程给个落点反馈：今天的直接进清单，未来的到那天自然出现。
+                  // 安排/移动到日程静默处理：不弹成功提示，数据照常写入。
                   // 写入日历 / 设系统闹钟由用户点上方对应 chip 自行决定，不静默代劳。
-                  if (widget.asSchedule) {
-                    StartApp.messengerKey.currentState?.showSnackBar(
-                      SnackBar(
-                        behavior: SnackBarBehavior.floating,
-                        backgroundColor: Colors.black87,
-                        duration: const Duration(seconds: 2),
-                        content: Text(tr('已排进 {0}', [_fmtDue(it.dueTime)]),
-                            style: const TextStyle(color: Colors.white)),
-                      ),
-                    );
-                  }
+                  await StartStore.I.put(it);
                 }
                 if (context.mounted) Navigator.pop(context);
               },
@@ -419,15 +398,7 @@ Future<void> showScheduleBatch(BuildContext context) async {
     await StartStore.I.put(it);
     if (plan.alarm) Native.setAlarm(it.alarmLabel, due);
   }
-  StartApp.messengerKey.currentState?.showSnackBar(
-    SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: Colors.black87,
-      duration: const Duration(seconds: 2),
-      content: Text(tr('{0} 件日程排进 {1}', [plan.titles.length, _fmtDueShort(due)]),
-          style: const TextStyle(color: Colors.white)),
-    ),
-  );
+  // 批量排进日程静默处理：不弹成功提示，列表里立即可见。
 }
 
 /// 批量日程的选项载荷：标题列表 + 是否写入日历 / 设系统闹钟。
@@ -436,18 +407,6 @@ class _BatchPlan {
   final bool calendar;
   final bool alarm;
   const _BatchPlan(this.titles, {this.calendar = false, this.alarm = false});
-}
-
-String _fmtDueShort(int ms) {
-  final d = DateTime.fromMillisecondsSinceEpoch(ms);
-  final now = DateTime.now();
-  final day = DateTime(d.year, d.month, d.day);
-  final today = DateTime(now.year, now.month, now.day);
-  final diff = day.difference(today).inDays;
-  final hm = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-  if (diff == 0) return tr('今天 {0}', [hm]);
-  if (diff == 1) return tr('明天 {0}', [hm]);
-  return '${d.month}/${d.day} $hm';
 }
 
 class _ScheduleBatchInput extends StatefulWidget {
