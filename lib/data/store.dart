@@ -37,6 +37,30 @@ class StartStore extends ChangeNotifier {
       }
     } catch (_) {}
     _ensureIds();
+    await _purgeMedCalendarEvents();
+  }
+
+  /// 一次性迁移：服药计划不再写入系统日历。把历史版本写入的日历事件
+  /// （cal_ids_* 偏好记录）逐个删除，并清掉全部 cal_ids_*/cal_sig_* 偏好。
+  /// med_cal_purged_v1 标记防重复执行。
+  Future<void> _purgeMedCalendarEvents() async {
+    if (prefBool('med_cal_purged_v1')) return;
+    final keys = prefs.keys
+        .where((k) => k.startsWith('cal_ids_') || k.startsWith('cal_sig_'))
+        .toList();
+    for (final k in keys) {
+      final v = prefs[k];
+      if (k.startsWith('cal_ids_') && v is String) {
+        for (final e in v.split(',')) {
+          final id = int.tryParse(e.trim()) ?? 0;
+          if (id > 0) await Native.calendarDelete(id);
+        }
+      }
+      prefs.remove(k);
+      await Prefs.set(k, null);
+    }
+    prefs['med_cal_purged_v1'] = true;
+    await Prefs.set('med_cal_purged_v1', true);
   }
 
   void _ensureIds() {
@@ -74,8 +98,7 @@ class StartStore extends ChangeNotifier {
 
   /// 启动重挂全部提醒（幂等）：滑掉卡片/强停/系统清后台会清掉 AlarmManager 里
   /// 全部闹钟，不重开机就永远不响——所以每次冷启动都重挂一遍。
-  /// 任务只挂未来到点的；服药走 armMedPlanNotify（内部跳过过去时刻，
-  /// 日历按内容签名去重不会重复写）。
+  /// 任务只挂未来到点的；服药走 armMedPlanNotify（内部跳过过去时刻，不再写日历）。
   Future<void> rearmAll() async {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     for (final it in List<Item>.from(items)) {
@@ -469,8 +492,8 @@ class StartStore extends ChangeNotifier {
   }
 
   /// 保存/编辑/恢复后重挂服药计划：
-  /// 通知 = 逐日逐时段独立 id，30 天滚动窗口（notify_on 总开关控制）；
-  /// 日历 = 按内容签名去重，内容没变不重写，变了先删旧事件再写新的。
+  /// 通知 = 逐日逐时段独立 id，30 天滚动窗口（notify_on 总开关控制）。
+  /// 服药不写入系统日历；此处顺带清理历史版本写入的日历事件与签名偏好。
   Future<void> armMedPlanNotify(Item plan) async {
     final meta = medPlanMeta(plan);
     final times = (meta['times'] as List?)?.cast<String>() ?? const [];
@@ -504,31 +527,15 @@ class StartStore extends ChangeNotifier {
       }
     }
 
-    // 日历：签名一致直接跳过（重复保存/恢复不堆积）；全部写入失败则不记签名，下次重试。
-    final sig = '$label|${times.join(',')}|$start|$end';
-    if (prefs['cal_sig_${plan.id}'] == sig) return;
+    // 日历：服药不再写入系统日历。清理历史版本为该计划写入的日历事件，
+    // 并清掉内容签名/事件 id 偏好（删除路径见 cancelMedPlanNotify）。
     for (final eid in _calEventIds(plan.id)) {
       await Native.calendarDelete(eid);
     }
-    final ids = <int>[];
-    for (var d = 0; d < 30; d++) {
-      final day = today.add(Duration(days: d));
-      final dayMs = day.millisecondsSinceEpoch;
-      if (start > 0 && dayMs < start) continue;
-      if (end > 0 && dayMs > end) continue;
-      for (final t in times) {
-        final when = _hMToMs(day, t);
-        if (when <= nowMs) continue;
-        final eid = await Native.calendarInsert(label, when);
-        if (eid > 0) ids.add(eid);
-      }
-    }
-    if (ids.isNotEmpty || times.isEmpty) {
-      prefs['cal_sig_${plan.id}'] = sig;
-      prefs['cal_ids_${plan.id}'] = ids.join(',');
-      await Prefs.set('cal_sig_${plan.id}', sig);
-      await Prefs.set('cal_ids_${plan.id}', ids.join(','));
-    }
+    prefs.remove('cal_sig_${plan.id}');
+    prefs.remove('cal_ids_${plan.id}');
+    await Prefs.set('cal_sig_${plan.id}', null);
+    await Prefs.set('cal_ids_${plan.id}', null);
   }
 
   // ---------------- 今日焦点 ----------------

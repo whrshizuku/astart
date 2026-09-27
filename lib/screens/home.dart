@@ -212,9 +212,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// 合并今日任务与手机日历事件，按 begin 升序。被任务 eventId 消费的事件跳过；
   /// 服药计划写入日历的事件也跳过（服药数据只出现在服药页，不进日程区）。
+  /// 兜底：旧版本写入、偏好已丢的残留服药事件，按标题（药名 · 剂量）匹配跳过显示，
+  /// 只隐藏不删除（标题匹配删除用户日历太激进）。
   List<Map<String, Object?>> _mergeToday(List<Item> schedule) {
     final consumed = schedule.map((e) => e.eventId).where((e) => e > 0).toSet();
     final medEvents = StartStore.I.medCalendarEventIds();
+    final medLabels = StartStore.I.medPlans().map((p) {
+      final meta = StartStore.medPlanMeta(p);
+      return '${p.title} · ${(meta['dose'] as String?) ?? ''}'.trim();
+    }).toSet();
     final entries = <Map<String, Object?>>[];
     for (final it in schedule) {
       entries.add({'kind': 'task', 'item': it, 'time': it.dueTime});
@@ -222,6 +228,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     for (final ev in _events) {
       final id = (ev['id'] as num?)?.toInt() ?? 0;
       if (consumed.contains(id) || medEvents.contains(id)) continue;
+      if (medLabels.contains(ev['title'])) continue;
       entries.add({'kind': 'event', 'event': ev, 'time': ev['begin'] as int? ?? 0});
     }
     entries.sort((a, b) => (a['time'] as int).compareTo(b['time'] as int));
@@ -295,7 +302,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         children: [
                           GestureDetector(
                             onLongPress: () => setState(() => _selecting = true),
-                            child: _SectionLabel(tr('日程'), onAdd: _newSchedule),
+                            child: _SectionLabel(
+                              tr('日程'),
+                              onAdd: _newSchedule,
+                              // 有已完成日程时显示「清除已完成」，点一下清掉不再占数据。
+                              extra: _hasDoneTasks()
+                                  ? Pressable(
+                                      onTap: _clearDone,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: S.xs, vertical: S.xxs),
+                                        child: Text(tr('清除已完成'),
+                                            style: TextStyle(
+                                                fontSize: S.textSm,
+                                                color: c.inkSoft)),
+                                      ),
+                                    )
+                                  : null,
+                            ),
                           ),
                           if (entries.isNotEmpty)
                             for (var i = 0; i < entries.length; i++) ...[
@@ -411,6 +435,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _newSchedule() async {
     final ctx = StartApp.navigatorKey.currentContext ?? context;
     if (ctx.mounted) await showScheduleBatch(ctx);
+  }
+
+  /// 是否存在已完成日程（顶层任务，含随手做/日程，小步骤不算）。
+  bool _hasDoneTasks() => StartStore.I.items
+      .any((it) => it.kind == Item.kindTask && it.parentId == 0 && it.done);
+
+  /// 清除已完成：整批删除全部已完成顶层任务（小步骤级联），撤销条可整体恢复。
+  Future<void> _clearDone() async {
+    final s = StartStore.I;
+    final ids = s.items
+        .where((it) => it.kind == Item.kindTask && it.parentId == 0 && it.done)
+        .map((e) => e.id)
+        .toList();
+    if (ids.isEmpty) return;
+    final snap = await s.deleteAll(ids);
+    if (!mounted) return;
+    UndoHost.show(context, tr('已清除 {0} 件已完成的日程', [ids.length]),
+        () async => s.restoreJson(snap));
   }
 
   /// 选择态顶栏：关闭 + 计数 + 全选 + 完成 + 删除（老版 buildAnytimeSelectBar）。
@@ -762,7 +804,8 @@ class _ClockHead extends StatelessWidget {
 class _SectionLabel extends StatelessWidget {
   final String text;
   final VoidCallback? onAdd;
-  const _SectionLabel(this.text, {this.onAdd});
+  final Widget? extra;
+  const _SectionLabel(this.text, {this.onAdd, this.extra});
 
   @override
   Widget build(BuildContext context) {
@@ -775,6 +818,8 @@ class _SectionLabel extends StatelessWidget {
               style: TextStyle(
                   fontSize: S.textSm, color: c.inkSoft, fontWeight: FontWeight.bold)),
           const Spacer(),
+          // 加号左侧的附加入口（如日程区的「清除已完成」）。
+          if (extra != null) extra!,
           if (onAdd != null)
             Pressable(
               onTap: onAdd,
