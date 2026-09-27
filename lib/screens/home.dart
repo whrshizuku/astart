@@ -210,16 +210,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return list;
   }
 
-  /// 合并今日任务与手机日历事件，按 begin 升序。被任务 eventId 消费的事件跳过。
+  /// 合并今日任务与手机日历事件，按 begin 升序。被任务 eventId 消费的事件跳过；
+  /// 服药计划写入日历的事件也跳过（服药数据只出现在服药页，不进日程区）。
   List<Map<String, Object?>> _mergeToday(List<Item> schedule) {
     final consumed = schedule.map((e) => e.eventId).where((e) => e > 0).toSet();
+    final medEvents = StartStore.I.medCalendarEventIds();
     final entries = <Map<String, Object?>>[];
     for (final it in schedule) {
       entries.add({'kind': 'task', 'item': it, 'time': it.dueTime});
     }
     for (final ev in _events) {
       final id = (ev['id'] as num?)?.toInt() ?? 0;
-      if (consumed.contains(id)) continue;
+      if (consumed.contains(id) || medEvents.contains(id)) continue;
       entries.add({'kind': 'event', 'event': ev, 'time': ev['begin'] as int? ?? 0});
     }
     entries.sort((a, b) => (a['time'] as int).compareTo(b['time'] as int));
@@ -543,7 +545,7 @@ class _FocusHero extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: c.ink)),
             const SizedBox(height: S.xs),
-            Text(tr('选好后，打开 Start 就能直接开始'),
+            Text(tr('选好后，打开启序就能直接开始'),
                 style: TextStyle(fontSize: S.textSm, color: c.inkSoft)),
             const SizedBox(height: S.md),
             // 主胶囊：开始吧——写一件或选一件，也可以把日程卡直接拖到这里。

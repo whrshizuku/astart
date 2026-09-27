@@ -424,6 +424,21 @@ class StartStore extends ChangeNotifier {
         .toList();
   }
 
+  /// 全部服药计划写入手机日历的事件 id 集合（cal_ids_* 偏好并集）。
+  /// 首页「日程」合并手机日历时按此排除，服药数据只出现在服药页。
+  Set<int> medCalendarEventIds() {
+    final r = <int>{};
+    prefs.forEach((k, v) {
+      if (k.startsWith('cal_ids_') && v is String) {
+        for (final e in v.split(',')) {
+          final id = int.tryParse(e.trim()) ?? 0;
+          if (id > 0) r.add(id);
+        }
+      }
+    });
+    return r;
+  }
+
   /// 取消服药计划全部提醒：30 天 × 全时段新版 id + 旧版固定 id + 系统闹钟 + 日历事件。
   Future<void> cancelMedPlanNotify(Item plan) async {
     final meta = medPlanMeta(plan);
@@ -538,7 +553,8 @@ class StartStore extends ChangeNotifier {
     final id = _int(prefs['focus_of_day_id'], 0);
     if (day != epochDay() || id <= 0) return null;
     final it = byId(id);
-    if (it == null || it.isIdea) {
+    // 念头与服药一律不做今日焦点（服药只出现在服药页）。
+    if (it == null || it.isIdea || it.isMed) {
       // 过期焦点静默清理：不 notify（调用方多在 build 期读取，notify 会打断构建）。
       prefs.remove('focus_of_day');
       prefs.remove('focus_of_day_id');

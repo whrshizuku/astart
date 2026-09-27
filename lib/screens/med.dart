@@ -389,7 +389,11 @@ class _MedScreenState extends State<MedScreen> {
     final start = (meta['start'] as int?) ?? 0;
     final end = (meta['end'] as int?) ?? 0;
     final label = '${plan.title} · ${(meta['dose'] as String?) ?? ''}'.trim();
-    if (oldLabel != null && oldLabel.isNotEmpty) {
+    // 撤销旧闹钟前先核对 pref：只有上次确实按旧标签设过系统闹钟才发撤销 intent，
+    // 否则（按日期范围的计划不绑闹钟 / pref 无记录）部分系统时钟会因找不到
+    // 匹配闹钟而跳出应用。
+    final savedTitle = StartStore.I.prefStr('alarm_title_${plan.id}', '');
+    if (oldLabel != null && oldLabel.isNotEmpty && savedTitle == oldLabel) {
       await Native.dismissAlarm(oldLabel);
     }
     if (times.isEmpty || start != 0 || end != 0) {

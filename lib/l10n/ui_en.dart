@@ -208,7 +208,7 @@ const Map<String, String> kUiEn = {
   '选个日期和时间': 'Pick a date and time',
   '选个日期和时间，才算一条日程': 'Pick a date and time to make it a schedule',
   '选好挂到当前枝上': 'Attach your pick to the current branch',
-  '选好后，打开 Start 就能直接开始': 'Once chosen, just open Start and dive in',
+  '选好后，打开启序就能直接开始': 'Once chosen, just open Start and dive in',
   '选择服务': 'Choose service',
   '一个念头一句话，换行多记几条': 'One idea per line',
   '移到随手做': 'Move to Anytime',
