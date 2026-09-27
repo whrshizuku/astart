@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>启序 · Start — 拆小步骤，一次只做一件事</title>
+    <meta name="description" content="面向注意力管理挑战的辅助工具。把待办拆成小步骤、一次只做一件事。数据默认只存在你手机里。">
+    <link rel="icon" type="image/png" href="favicon.png">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --red: #E74C3C;
+            --red-dark: #C73E2F;
+            --bg: #FFFFFF;
+            --bg-alt: #F7F7F7;
+            --text: #2C2C2C;
+            --text2: #666666;
+            --border: #E8E8E8;
+        }
+
+        body {
+            font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            line-height: 1.7;
+            color: var(--text);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+        /* Header */
+        header {
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0;
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(12px);
+            z-index: 100;
+        }
+        .header-inner { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
+        .logo em { font-style: normal; color: var(--red); }
+        nav { display: flex; gap: 28px; }
+        nav a { color: var(--text2); text-decoration: none; font-size: 14px; transition: color .2s; }
+        nav a:hover { color: var(--red); }
+
+        /* Hero */
+        .hero {
+            padding: 80px 0 64px;
+            text-align: center;
+        }
+        .hero .badge {
+            display: inline-block;
+            background: var(--red);
+            color: #fff;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 28px;
+        }
+        .hero h1 {
+            font-size: 44px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+        }
+        .hero .sub {
+            font-size: 18px;
+            color: var(--text2);
+            margin-bottom: 20px;
+        }
+        .hero .desc {
+            font-size: 15px;
+            color: var(--text2);
+            max-width: 520px;
+            margin: 0 auto 36px;
+            line-height: 1.8;
+        }
+        .hero .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+        .btn {
+            padding: 13px 30px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all .2s;
+            display: inline-block;
+        }
+        .btn-primary { background: var(--red); color: #fff; }
+        .btn-primary:hover { background: var(--red-dark); transform: translateY(-1px); }
+        .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--red); color: var(--red); }
+
+        /* Section */
+        .section { padding: 64px 0; }
+        .section-alt { background: var(--bg-alt); }
+        .section-title {
+            font-size: 30px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+        .section-desc {
+            text-align: center;
+            color: var(--text2);
+            font-size: 15px;
+            margin-bottom: 48px;
+            max-width: 560px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Workflow */
+        .workflow {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            flex-wrap: wrap;
+            margin-top: 48px;
+        }
+        .wf-step { text-align: center; max-width: 240px; }
+        .wf-step h3 { font-size: 22px; margin-bottom: 8px; }
+        .wf-step p { color: var(--text2); font-size: 14px; line-height: 1.7; }
+        .wf-arrow {
+            display: flex; align-items: center;
+            font-size: 24px; color: var(--border);
+            font-weight: 300;
+        }
+
+        /* Feature groups */
+        .feat-group { margin-bottom: 48px; }
+        .feat-group:last-child { margin-bottom: 0; }
+        .feat-group-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            padding-left: 14px;
+            border-left: 3px solid var(--red);
+        }
+        .feat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .feat-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+            transition: all .2s;
+        }
+        .feat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+        }
+        .feat-card h4 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .feat-card h4 .new-tag {
+            background: var(--red);
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .feat-card p {
+            color: var(--text2);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        /* Privacy */
+        .privacy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+        .privacy-item {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .privacy-item h4 {
+            font-size: 15px;
+            margin-bottom: 6px;
+            color: var(--red);
+        }
+        .privacy-item p { color: var(--text2); font-size: 13px; line-height: 1.7; }
+
+        /* Changelog */
+        .changelog { max-width: 720px; margin: 0 auto; }
+        .cl-item {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .cl-item:last-child { border-bottom: none; }
+        .cl-ver {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .cl-ver .latest {
+            background: var(--red);
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+            font-weight: 600;
+        }
+        .cl-item p { color: var(--text2); font-size: 14px; line-height: 1.8; }
+
+        /* Download */
+        .download-box {
+            text-align: center;
+            padding: 48px 32px;
+            background: var(--bg-alt);
+            border-radius: 12px;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+        .download-box h3 { font-size: 22px; margin-bottom: 8px; }
+        .download-box p { color: var(--text2); font-size: 14px; margin-bottom: 24px; }
+        .download-box .req {
+            font-size: 13px;
+            color: var(--text2);
+            margin-top: 16px;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text2);
+            font-size: 13px;
+        }
+        .footer-links { display: flex; gap: 24px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+        .footer-links a { color: var(--red); text-decoration: none; }
+        .footer-links a:hover { text-decoration: underline; }
+        .footer-note { margin-top: 8px; font-size: 12px; }
+        .footer-tagline {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #999;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 32px; }
+            .hero .sub { font-size: 16px; }
+            .section-title { font-size: 24px; }
+            nav { display: none; }
+            .workflow { gap: 24px; }
+            .wf-arrow { display: none; }
+            .feat-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="container header-inner">
+        <div class="logo">启序 <em>·</em> Start</div>
+        <nav>
+            <a href="#workflow">工作流</a>
+            <a href="#features">功能</a>
+            <a href="#privacy">隐私</a>
+            <a href="#download">下载</a>
+        </nav>
+    </div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="container">
+        <h1>拆小步骤，一次只做一件事</h1>
+        <p class="sub">为 ADHD 人群设计的记事工具</p>
+        <p class="desc">面向注意力管理挑战的辅助工具。</p>
+        <div class="actions">
+            <a href="https://gitee.com/dubwhr/astart/releases" target="_blank" class="btn btn-primary">下载最新版</a>
+            <a href="https://gitee.com/dubwhr/astart" target="_blank" class="btn btn-ghost">源码仓库</a>
+        </div>
+    </div>
+</section>
+
+<!-- Workflow -->
+<section class="section section-alt" id="workflow">
+    <div class="container">
+        <h2 class="section-title">工作流</h2>
+        <p class="section-desc">丢 → 捋 → 做，三步把杂乱变成行动</p>
+        <div class="workflow">
+            <div class="wf-step">
+                <h3>丢进来</h3>
+                <p>点底栏中央红色键「动手吧」，一股脑全写下来，不用想分类，写完「倒进来」</p>
+            </div>
+            <div class="wf-arrow">→</div>
+            <div class="wf-step">
+                <h3>捋一捋</h3>
+                <p>把每条暂存分到日程或随手做；嫌哪条大就在思维导图或拆词里拆开</p>
+            </div>
+            <div class="wf-arrow">→</div>
+            <div class="wf-step">
+                <h3>开始做</h3>
+                <p>把日程拖到顶部「焦点」区，一天只盯它；嫌它大就拆成小步骤，一步一步来</p>
+            </div>
+        </div>
+        <p style="text-align:center; color:var(--text2); font-size:14px; margin-top:32px;">所有删除都有 <strong>5 秒撤销</strong>，删错了随时拉回来</p>
+    </div>
+</section>
+
+<!-- Features -->
+<section class="section" id="features">
+    <div class="container">
+
+        <!-- 记录 -->
+        <div class="feat-group">
+            <h3 class="feat-group-title">记录</h3>
+            <div class="feat-grid">
+                <div class="feat-card">
+                    <h4>动手吧</h4>
+                    <p>底栏中央红钮。短按文字速记，自动按行和句末标点拆成几件倒进捋一捋；长按语音速记——内置开源 Vosk 引擎，自带中文模型，实时转写、自动续听。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>随手做加号</h4>
+                    <p>想到什么丢什么。回车换行多记几条、按行自动拆开，直接进随手做。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>捋一捋</h4>
+                    <p>分拣中枢，也能直接速记。逐条分类为日程或随手做，加号支持一次写多条，批量操作与全选。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 整理 -->
+        <div class="feat-group">
+            <h3 class="feat-group-title">整理</h3>
+            <div class="feat-grid">
+                <div class="feat-card">
+                    <h4>拆词</h4>
+                    <p>按词单元拆分，词、句、混写自动分辨；词芯片默认全选、单击取消、双击删词、长按拖动换位。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>思维导图</h4>
+                    <p>捋一捋内置，自由编辑删除——加子枝 / 加同级 / 编辑 / 删除，按住拖动节点连同子树自由摆放，双指缩放。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>拆成小步骤</h4>
+                    <p>焦点专属。标题只是事件名，永远不会被拆；输入条写一步存一步，按行自动拆条，步骤可编辑、拖动排序，全完成自动勾掉任务。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 执行 -->
+        <div class="feat-group">
+            <h3 class="feat-group-title">执行</h3>
+            <div class="feat-grid">
+                <div class="feat-card">
+                    <h4>服药</h4>
+                    <p>按日期翻页管理每日用药；服药时刻完全自定义（24 小时制任意时间点），保存后逐日自动设到点提醒并绑定系统闹钟；右上角日历图标切月历视图，可查看每日用药状态；点圆圈记录已服。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>日程</h4>
+                    <p>定时任务按时刻排成纯文字清单，右侧标时刻；过期仅标日期，不改红不责备。点时刻胶囊闪红改时间；行尾小圆钮展开「不做了 / 改日再做」；长按小节标题批量删除。提醒 / 写入日历 / 系统闹钟三项可选。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>焦点</h4>
+                    <p>页面最上方大标语区——「今天只做一件就好」，点「选一件」挑一件。一屏一事，主胶囊「只做它」直接进专注，完成就地鼓励。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>专注</h4>
+                    <p>只显示空心圆环和倒计时数字，时长自定义。滴答声可选，结束有提示音。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>随手做</h4>
+                    <p>没时间的事都待在这；加号可一次写多件，回车换行或句末标点自动拆成多条直接存入；拖行尾手柄排序；拖进日程区选个时间就转成日程。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>统计</h4>
+                    <p>按日期查看，从首次使用到今天一天一页，左右滑动切换；当日专注分钟、专注次数、完成的事、新增条目四个大数字，配整点专注分布柱状图。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 安心 -->
+        <div class="feat-group">
+            <h3 class="feat-group-title">安心</h3>
+            <div class="feat-grid">
+                <div class="feat-card">
+                    <h4>全局撤回</h4>
+                    <p>任何删除（含思维导图节点）都有 5 秒撤销栏，防误删。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>到点悬浮提醒</h4>
+                    <p>日程到时间弹横幅通知，支持系统闹钟，重启后自动恢复。后台常驻通知降低被系统终止的可能 + 开机自启动重排提醒。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>搜索与导入导出</h4>
+                    <p>首页顶栏放大镜就是全部任务管理台——分类胶囊筛选、批量删除、搜到即可编辑。系统文件选择器存取数据文件，导入前自动快照可撤销。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 界面 -->
+        <div class="feat-group">
+            <h3 class="feat-group-title">界面</h3>
+            <div class="feat-grid">
+                <div class="feat-card">
+                    <h4>纯图标</h4>
+                    <p>无文字按钮，全局统一墨色与番茄红点缀，数字等宽严格对齐。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>深色模式</h4>
+                    <p>跟随系统 / 开 / 关三态；字号小中大可选。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>多语言</h4>
+                    <p>跟随系统 / 简体中文 / 繁體中文 / English / 日本语，设置里可手动切换。简体中文显示「启序」，其他语种显示「Start」。</p>
+                </div>
+                <div class="feat-card">
+                    <h4>全面屏</h4>
+                    <p>内容延伸状态栏与手势条，透明系统栏自适应明暗。</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<!-- Privacy -->
+<section class="section section-alt" id="privacy">
+    <div class="container">
+        <h2 class="section-title">隐私</h2>
+        <p class="section-desc">无账户、无广告、无统计 SDK</p>
+        <div class="privacy-grid">
+            <div class="privacy-item">
+                <h4>全局撤回</h4>
+                <p>任何删除都有 5 秒撤销栏，删错了随时拉回来</p>
+            </div>
+            <div class="privacy-item">
+                <h4>到点提醒</h4>
+                <p>日程到时间弹横幅通知，支持系统闹钟，重启后自动恢复；后台常驻通知降低被系统终止的可能</p>
+            </div>
+            <div class="privacy-item">
+                <h4>导入导出</h4>
+                <p>系统文件选择器存取数据文件，导入前自动快照可撤销</p>
+            </div>
+            <div class="privacy-item">
+                <h4>检查更新</h4>
+                <p>启动静默查 Gitee 发布页，发现新版自动提醒</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Download -->
+<section class="section section-alt" id="download">
+    <div class="container">
+        <div class="download-box">
+            <h3>下载启序</h3>
+            <p>下载最新正式版，包含全部功能与修复</p>
+            <a href="https://gitee.com/dubwhr/astart/releases" target="_blank" class="btn btn-primary">前往 Releases 下载</a>
+            <p class="req">系统要求：Android 10.0（API 29）及以上<br>老机型或追求极简可用 Java 版（最低 Android 5.0）：<a href="https://gitee.com/dubwhr/start-Java" target="_blank" style="color:var(--red);">start-Java</a></p>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="footer-links">
+            <a href="https://gitee.com/dubwhr/astart" target="_blank">源码仓库</a>
+            <a href="https://gitee.com/dubwhr/astart/releases" target="_blank">下载页面</a>
+            <a href="https://gitee.com/dubwhr/astart/issues" target="_blank">问题反馈</a>
+            <a href="mailto:3210819895@qq.com">联系作者</a>
+        </div>
+        <p>启序由个人开发者 <strong>王浩然</strong> 独立设计，AI 辅助编码</p>
+        <p style="font-size:13px; color:var(--text2);">AI 不参与原创设计，仅提供代码实现建议；开发者仅对应用现状负责</p>
+        <p>本应用对个人非商业使用永久免费，商业使用需开发者的书面授权</p>
+        <p class="footer-note">开源协议：AGPLv3+（自 v1.5.1 起）| 医疗免责：本产品不能代替医疗，不构成医疗建议、诊断或治疗</p>
+        <p class="footer-tagline">── 工匠的骄傲与喜悦 · PRIDE & JOY ──</p>
+    </div>
+</footer>
+
+</body>
+</html>

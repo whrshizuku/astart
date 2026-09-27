@@ -2,7 +2,7 @@
 
 Start (Chinese name 启序) is a local note-and-task tool: break to-dos into small steps so you can nail just one thing at a time. Designed for ADHD minds — encouraging words, low friction, no scolding. Everything stays on your device by default; apart from update checks, online speech recognition, the AI assistant and cloud backup are all opt-in features that stay off and only connect when you actively use them.
 
-> Originality and AI-assistance statement: this app was independently designed by an individual developer, with AI tools assisting the coding. Its design, interaction logic and workflows are entirely the developer’s original work; AI was used only to implement features and took no part in the original design. The developer is responsible for the final product and all of its contents. This manual was translated from the Simplified Chinese original by AI, for reference only.
+> Originality and AI-assistance statement: this app was independently designed by an individual developer, with AI tools assisting the coding. Its design, interaction logic and workflows are entirely the developer’s original work; AI was used only to implement features and took no part in the original design. The developer is responsible only for the product “as is”. This manual was translated from the Simplified Chinese original by AI, for reference only.
 
 # The rhythm: dump → sort → do
 Dump: jot everything down first — no sorting needed.

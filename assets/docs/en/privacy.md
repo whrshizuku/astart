@@ -5,3 +5,4 @@
 3. Due-time reminders and the persistent notification for schedules and anytime tasks are handled entirely on your phone, never via any server.
 4. Uninstalling the app permanently deletes all data; use the export feature first if you want to keep a copy.
 5. Questions about this policy? Reach the developer via “Contact the author” in Settings.
+6. Originality and AI-assistance statement: this app was independently designed by an individual developer, with AI tools assisting the coding. Its design, interaction logic and workflows are entirely the developer’s original work; AI was used only to implement features and took no part in the original design. The developer is responsible only for the product “as is”.
