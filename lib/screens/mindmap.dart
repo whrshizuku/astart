@@ -305,6 +305,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
   Widget _toolbar(C c) {
     final s = StartStore.I;
     if (_selecting) {
+      // 多选态只给：全选 + 计数 + 退出。批量删除统一拖进底部红桶（全局交互统一）。
       final allIds = <int>[];
       _descIds(widget.rootId, allIds);
       return Container(
@@ -327,19 +328,6 @@ class _MindMapScreenState extends State<MindMapScreen> {
                   });
                 }),
                 Text(tr('已选 {0}', [_selected.length]), style: TextStyle(color: c.inkSoft, fontSize: S.textSm)),
-                IconBtn(Icons.delete_outline, tip: tr('删除所选'), color: c.accent,
-                    onTap: _selected.isEmpty ? null : () {
-                      final snap = s.exportJson();
-                      for (final id in _selected) {
-                        if (id != widget.rootId) s.delete(id, cascade: true);
-                      }
-                      setState(() {
-                        _selected.clear();
-                        _selecting = false;
-                        _sel = 0;
-                      });
-                      UndoHost.show(context, tr('已删除所选'), () async => s.restoreJson(snap));
-                    }),
                 IconBtn(Icons.close, tip: tr('退出'), onTap: () {
                   setState(() {
                     _selecting = false;
@@ -382,7 +370,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
       );
     }
 
-    // 选中：加子节点（主）+ 非根时 编辑/删除 + 批量
+    // 选中：加子节点（主）+ 非根时 编辑 + 批量。删除统一长按拖进底部红桶（全局交互统一）。
     return Container(
       decoration: BoxDecoration(
         color: c.card,
@@ -400,18 +388,9 @@ class _MindMapScreenState extends State<MindMapScreen> {
                   tip: tr('加子节点'),
                   color: c.accent,
                   onTap: () => _addNode(_sel)),
-              // 非根节点才给「编辑」「删除」（根不可删）
-              if (!isRootSel) ...[
+              // 非根节点才给「编辑」（删除统一拖红桶）
+              if (!isRootSel)
                 IconBtn(Icons.edit_outlined, tip: tr('编辑'), onTap: () => _editNode(selItem!)),
-                IconBtn(Icons.delete_outline, tip: tr('删除（含子枝）'), color: c.accent,
-                    onTap: () async {
-                      final snap = s.exportJson();
-                      s.delete(_sel, cascade: true);
-                      setState(() => _sel = 0);
-                      if (!mounted) return;
-                      UndoHost.show(context, tr('剪掉一枝'), () async => s.restoreJson(snap));
-                    }),
-              ],
               // 批量入口（始终有）
               IconBtn(Icons.checklist_outlined, tip: tr('批量整理'),
                   onTap: () => setState(() {
@@ -643,15 +622,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
             row(Icons.edit_outlined, tr('编辑文字'), () async => _editNode(n)),
             row(Icons.subdirectory_arrow_right, tr('加子节点'),
                 () => _addNode(n.id), color: c.accent),
-            if (!isRoot)
-              row(Icons.delete_outline, tr('剪掉这枝'), () async {
-                final snap = s.exportJson();
-                s.delete(n.id, cascade: true);
-                setState(() => _sel = 0);
-                if (!mounted) return;
-                UndoHost.show(
-                    context, tr('剪掉一枝'), () async => s.restoreJson(snap));
-              }, color: c.accent),
+            // 删除统一长按拖进底部红桶（全局交互统一），快捷菜单不再提供删除入口。
           ],
         ),
       );
