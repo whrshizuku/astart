@@ -396,7 +396,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// 「今天」列表里的一行：任务可长按拖拽（设焦点 / 垃圾桶删除 / 开成导图）。
+  /// 「今天」列表里的一行：非选择态长按进入多选并选中本条；
+  /// 选择态内已选条目可整组拖垃圾桶删除，未选条目禁拖。
   Widget _todayEntry(Map<String, Object?> e) {
     if (e['kind'] == 'event') {
       final ev = e['event'] as Map<String, Object?>;
@@ -404,37 +405,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     final it = e['item'] as Item;
     final sel = _selected.contains(it.id);
+    final line = _TaskLine(
+      it: it,
+      nowMs: _nowMs,
+      selecting: _selecting,
+      selected: _selected,
+      onChange: () => setState(() {}),
+      // 长按进选择态（已在选择态则切换本条选中）；拖桶删除改在选择态内进行，
+      // 故非选择态不再包 DraggableLine，避免其长按手势抢先消费。
+      onLongPress: () => setState(() {
+        if (_selecting) {
+          _selected.contains(it.id) ? _selected.remove(it.id) : _selected.add(it.id);
+        } else {
+          _selecting = true;
+          _selected.add(it.id);
+        }
+      }),
+    );
+    if (!_selecting) return line;
     return DraggableLine(
       id: it.id,
       title: it.title,
-      enabled: !_selecting || sel,
-      dragIds: _selecting && sel && _selected.length > 1
-          ? _selected.toList()
-          : null,
+      enabled: sel,
+      dragIds: sel && _selected.length > 1 ? _selected.toList() : null,
       selected: sel,
       onDragStarted: () => setState(() {
         _selecting = false;
         _selected.clear();
       }),
-      child: _TaskLine(
-        it: it,
-        nowMs: _nowMs,
-        selecting: _selecting,
-        selected: _selected,
-        onChange: () => setState(() {}),
-      ),
+      child: line,
     );
   }
 
-  /// 随手做拖进「日程」区：删原条目（可撤销）并打开编辑器选时间，存好即成日程。
+  /// 随手做拖进「日程」区：删原条目并打开编辑器选时间，存好即成日程。
+  /// 移入日程静默处理：不再弹撤销条，数据照常写入。
   Future<void> _dragToSchedule(int id) async {
     final s = StartStore.I;
     final it = s.items.firstWhere((e) => e.id == id, orElse: () => Item());
     if (it.id == 0) return;
-    final snap = s.exportJson();
     await s.delete(id, cascade: true);
     if (!mounted) return;
-    UndoHost.show(context, tr('已移入日程，选个时间'), () async => s.restoreJson(snap));
     final ctx = StartApp.navigatorKey.currentContext ?? context;
     if (ctx.mounted) await showScheduleEditor(ctx, title: it.title);
   }
@@ -976,12 +986,14 @@ class _TaskLine extends StatelessWidget {
   final bool selecting;
   final Set<int> selected;
   final VoidCallback onChange;
+  final VoidCallback? onLongPress;
   const _TaskLine({
     required this.it,
     required this.nowMs,
     required this.selecting,
     required this.selected,
     required this.onChange,
+    this.onLongPress,
   });
 
   @override
@@ -996,6 +1008,7 @@ class _TaskLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.xs),
       child: Pressable(
+        onLongPress: onLongPress,
         onTap: selecting
             ? () { selected.contains(it.id) ? selected.remove(it.id) : selected.add(it.id); onChange(); }
             : () => showItemEditor(context, it, onDeleted: onChange),

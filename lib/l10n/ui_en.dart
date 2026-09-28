@@ -225,7 +225,6 @@ const Map<String, String> kUiEn = {
   '已是最新版': 'Already up to date',
   '已写入手机日历，到点它自己会提醒': "Added to your phone's calendar — it will nudge you on time",
   '已选 {0}': '{0} selected',
-  '已移入日程，选个时间': 'Moved to schedules — pick a time',
   '已在日历': 'In calendar',
   '隐私政策': 'Privacy Policy',
   '用户协议': 'Terms of Use',
