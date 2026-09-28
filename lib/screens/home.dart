@@ -388,233 +388,201 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// 「今天」列表里的一行：统一走 _ItemRow，头部长按拖拽，尾部长按多选。
+  /// 「今天」列表里的一行：根据选择态走对应的独立行组件。
   Widget _todayEntry(Map<String, Object?> e) {
     if (e['kind'] == 'event') {
       final ev = e['event'] as Map<String, Object?>;
       return _EventLine(event: ev, nowMs: _nowMs);
     }
-    return _itemRow(e['item'] as Item);
+    return _selecting
+        ? _itemRowSelecting(e['item'] as Item)
+        : _itemRowNormal(e['item'] as Item);
   }
 
-  /// 随手做区的一行：也是 _ItemRow，头尾拆分统一交互。
-  Widget _anytimeRow(Item it) => _itemRow(it);
+  /// 随手做区的一行：同日程区，头尾拆分统一交互。
+  Widget _anytimeRow(Item it) =>
+      _selecting ? _itemRowSelecting(it) : _itemRowNormal(it);
 
-  /// 统一行组件（日程 / 随手做共用）：
-  /// 头部（左 ~30%）→ 长按拖拽（跨模块 / 排序 / 底部红桶删除）
-  /// 尾部（右 ~70%）→ 长按进多选（或选择态内切换选中），点击进编辑器 / 勾选完成
-  Widget _itemRow(Item it) {
+  // ================================================================
+  //  两个独立行组件，职责单一，互不嵌套
+  // ================================================================
+
+  /// 非选择态行：
+  ///   头部 CheckDot + 长按拖拽（LongPressDraggable<int>）
+  ///   尾部 GestureDetector → 长按进多选 / 点击进编辑器
+  Widget _itemRowNormal(Item it) {
     final s = StartStore.I;
     final c = ThemeTokens.of(context);
-    final sel = _selected.contains(it.id);
     final overdue = !it.done && it.dueTime > 0 && it.dueTime < _nowMs;
     final progress = s.subtaskProgress(it.id);
     final hasSub = progress[1] > 0;
 
-    // 头部只做拖拽触发区 + 完成标记 CheckDot；勾选圆圈统一放尾部。
-    Widget head() {
-      final headContent = Padding(
-        padding: const EdgeInsets.only(right: S.sm),
-        child: CheckDot(
-          done: it.done,
-          onTap: () async {
-            it.done = !it.done;
-            await s.put(it);
-            setState(() {});
-          },
-        ),
-      );
+    final headContent = Padding(
+      padding: const EdgeInsets.only(right: S.sm),
+      child: CheckDot(
+        done: it.done,
+        onTap: () async {
+          it.done = !it.done;
+          await s.put(it);
+          setState(() {});
+        },
+      ),
+    );
 
-      if (_selecting) {
-        // 选择态：整条 Row 由外层 DraggableLine 包裹（见返回值），
-        // 头部在这里也走 DraggableLine 只负责整组拖桶。
-        return DraggableLine(
-          id: it.id,
-          title: it.title,
-          enabled: sel,
-          dragIds: sel && _selected.length > 1 ? _selected.toList() : null,
-          selected: sel,
-          onDragStarted: () => setState(() {
-            _selecting = false;
-            _selected.clear();
-          }),
-          child: headContent,
-        );
-      }
-      // 非选择态：头部长按 = 单条拖拽
-      return LongPressDraggable<int>(
-        data: it.id,
-        maxSimultaneousDrags: 1,
-        delay: const Duration(milliseconds: 120),
-        rootOverlay: true,
-        onDragStarted: () {
-          DragDockBus.active.value = true;
-          DragDockBus.pendingIds = null;
-        },
-        onDragEnd: (_) {
-          DragDockBus.active.value = false;
-          DragDockBus.pendingIds = null;
-        },
-        feedback: Material(
-          color: Colors.transparent,
-          child: SizedBox(
-            width: MediaQuery.sizeOf(context).width - S.md * 2,
-            child: _itemRowFull(it),
-          ),
+    final head = LongPressDraggable<int>(
+      data: it.id,
+      maxSimultaneousDrags: 1,
+      delay: const Duration(milliseconds: 120),
+      rootOverlay: true,
+      onDragStarted: () {
+        DragDockBus.active.value = true;
+        DragDockBus.pendingIds = null;
+      },
+      onDragEnd: (_) {
+        DragDockBus.active.value = false;
+        DragDockBus.pendingIds = null;
+      },
+      feedback: Material(
+        color: Colors.transparent,
+        child: SizedBox(
+          width: MediaQuery.sizeOf(context).width - S.md * 2,
+          child: _itemRowFull(it),
         ),
-        childWhenDragging: Opacity(opacity: 0.45, child: headContent),
-        child: headContent,
-      );
-    }
+      ),
+      childWhenDragging: Opacity(opacity: 0.45, child: headContent),
+      child: headContent,
+    );
 
     final tail = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onLongPress: () {
-        if (_selecting) {
-          setState(() {
-            sel ? _selected.remove(it.id) : _selected.add(it.id);
-          });
-        } else {
-          setState(() {
-            _selecting = true;
-            _selected.add(it.id);
-          });
-        }
-      },
-      onTap: () {
-        if (_selecting) {
-          setState(() {
-            sel ? _selected.remove(it.id) : _selected.add(it.id);
-          });
-        } else {
-          showItemEditor(context, it, onDeleted: () => setState(() {}));
-        }
-      },
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  it.title.isEmpty ? it.note.split('\n').first : it.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: S.textMd,
-                    color: it.done ? c.done : c.ink,
-                    decoration: it.done ? TextDecoration.lineThrough : null,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (hasSub)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      children: [
-                        Icon(Icons.hexagon_outlined, size: 12, color: c.inkSoft),
-                        const SizedBox(width: S.xxs),
-                        Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: c.inkSoft,
-                                fontFeatures: const [FontFeature.tabularFigures()])),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (it.dueTime > 0) ...[
-            const SizedBox(width: S.sm),
-            Text(
-              overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
-              style: TextStyle(
-                  fontSize: S.textSm,
-                  fontWeight: FontWeight.bold,
-                  color: overdue ? c.accent : (it.done ? c.done : c.inkSoft),
-                  fontFeatures: const [FontFeature.tabularFigures()]),
-            ),
-          ],
-          const SizedBox(width: S.xs),
-          // 选择态的勾选圆圈放到最尾部
-          if (_selecting)
-            Icon(sel ? Icons.check_circle : Icons.circle_outlined,
-                color: sel ? c.accent : c.inkSoft, size: 22)
-          else
-            Icon(Icons.more_horiz, size: 16, color: c.inkSoft),
-        ],
-      ),
+      onLongPress: () => setState(() {
+        _selecting = true;
+        _selected.add(it.id);
+      }),
+      onTap: () => showItemEditor(context, it, onDeleted: () => setState(() {})),
+      child: _itemTailBody(it, c, overdue, hasSub, progress, selecting: false),
     );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.xs),
-      child: Row(
-        children: [
-          head(),
-          Expanded(child: tail),
-        ],
-      ),
+      child: Row(children: [head, Expanded(child: tail)]),
     );
   }
 
-  /// 整行完整渲染（供拖拽 feedback 用，样式与非选择态一致）。
-  Widget _itemRowFull(Item it) {
-    final s = StartStore.I;
+  /// 选择态行：
+  ///   整条 Row 只包一层 DraggableLine（已选可整组拖桶）
+  ///   尾部末尾追加勾选圆圈 Icon（选择 / 取消）
+  Widget _itemRowSelecting(Item it) {
     final c = ThemeTokens.of(context);
+    final sel = _selected.contains(it.id);
     final overdue = !it.done && it.dueTime > 0 && it.dueTime < _nowMs;
+    final s = StartStore.I;
     final progress = s.subtaskProgress(it.id);
     final hasSub = progress[1] > 0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: S.xs),
-      child: Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: S.sm),
-            child: CheckDot(
-              done: it.done,
-              onTap: () async {
-                it.done = !it.done;
-                await StartStore.I.put(it);
-                setState(() {});
-              },
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  it.title.isEmpty ? it.note.split('\n').first : it.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: S.textMd,
-                    color: it.done ? c.done : c.ink,
-                    decoration: it.done ? TextDecoration.lineThrough : null,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (hasSub)
-                  Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
-                      style: TextStyle(fontSize: 11, color: c.inkSoft)),
-              ],
-            ),
-          ),
-          if (it.dueTime > 0) ...[
-            const SizedBox(width: S.sm),
-            Text(
-              overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
-              style: TextStyle(
-                  fontSize: S.textSm,
-                  fontWeight: FontWeight.bold,
-                  color: overdue ? c.accent : c.inkSoft),
-            ),
-          ],
-        ],
+
+    final headContent = Padding(
+      padding: const EdgeInsets.only(right: S.sm),
+      child: CheckDot(
+        done: it.done,
+        onTap: () async {
+          it.done = !it.done;
+          await s.put(it);
+          setState(() {});
+        },
       ),
     );
+
+    final tail = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => setState(() {
+        sel ? _selected.remove(it.id) : _selected.add(it.id);
+      }),
+      onTap: () => setState(() {
+        sel ? _selected.remove(it.id) : _selected.add(it.id);
+      }),
+      child: _itemTailBody(it, c, overdue, hasSub, progress, selecting: true, sel: sel),
+    );
+
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: S.xs),
+      child: Row(children: [headContent, Expanded(child: tail)]),
+    );
+
+    return DraggableLine(
+      id: it.id,
+      title: it.title,
+      enabled: sel,
+      dragIds: sel && _selected.length > 1 ? _selected.toList() : null,
+      selected: sel,
+      onDragStarted: () => setState(() {
+        _selecting = false;
+        _selected.clear();
+      }),
+      child: row,
+    );
   }
+
+  /// 共享尾部主体（标题 / 小步骤 / 日期 / 末位图标位）。
+  /// [selecting] → 末尾为勾选圆圈 Icon（由外层传入 sel 决定）；否则为 more_horiz。
+  Widget _itemTailBody(Item it, C c, bool overdue, bool hasSub,
+      List<int> progress, {required bool selecting, bool sel = false}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                it.title.isEmpty ? it.note.split('\n').first : it.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: S.textMd,
+                  color: it.done ? c.done : c.ink,
+                  decoration: it.done ? TextDecoration.lineThrough : null,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (hasSub)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      Icon(Icons.hexagon_outlined, size: 12, color: c.inkSoft),
+                      const SizedBox(width: S.xxs),
+                      Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: c.inkSoft,
+                              fontFeatures: const [FontFeature.tabularFigures()])),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (it.dueTime > 0) ...[
+          const SizedBox(width: S.sm),
+          Text(
+            overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
+            style: TextStyle(
+                fontSize: S.textSm,
+                fontWeight: FontWeight.bold,
+                color: overdue ? c.accent : (it.done ? c.done : c.inkSoft),
+                fontFeatures: const [FontFeature.tabularFigures()]),
+          ),
+        ],
+        const SizedBox(width: S.xs),
+        selecting
+            ? Icon(sel ? Icons.check_circle : Icons.circle_outlined,
+                color: sel ? c.accent : c.inkSoft, size: 22)
+            : Icon(Icons.more_horiz, size: 16, color: c.inkSoft),
+      ],
+    );
+  }
+
+  /// 非选择态整行克隆（只用于 LongPressDraggable 的 feedback 渲染）。
+  Widget _itemRowFull(Item it) => _itemRowNormal(it);
 
   /// 随手做拖进「日程」区：删原条目并打开编辑器选时间，存好即成日程。
   /// 移入日程静默处理：不再弹撤销条，数据照常写入。

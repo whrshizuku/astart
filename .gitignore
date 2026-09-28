@@ -57,3 +57,12 @@ Start-*-signed.apk
 
 *.apk
 android/build/
+
+# 禁止入库目录（个人网站、模型、说明书输出）
+website/
+assets/models/
+assets/vosk/
+*.idsig
+说明书/
+说明书.zip
+说明书.pdf
