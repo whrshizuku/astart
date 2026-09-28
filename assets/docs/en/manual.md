@@ -1,4 +1,4 @@
-﻿> This is the copy bundled in the app. If this manual, the Terms of Service, Privacy Policy or open-source license differ in any way from the actual files in the project repository (https://gitee.com/dubwhr/astart), the repository files prevail.
+> This is the copy bundled in the app. If this manual, the Terms of Service, Privacy Policy or open-source license differ in any way from the actual files in the project repository (https://gitee.com/dubwhr/astart), the repository files prevail.
 
 Start (Chinese name 启序) is a local note-and-task tool: break to-dos into small steps so you can nail just one thing at a time. Designed for neurodivergent minds — encouraging words, low friction, no scolding. Everything stays on your device by default; apart from update checks, online speech recognition, the AI assistant and cloud backup are all opt-in features that stay off and only connect when you actively use them.
 
@@ -18,17 +18,18 @@ Once chosen, the title shows up big. The main button “Do this one” jumps str
 Steps: each line you type is saved as a step — press Enter to write several, they split by line on save. The title is just the task name and isn’t split. Finish every step and the task checks itself off.
 
 # Schedule
-Timed tasks form a plain text list in time order with the time on the right; overdue items just show the date — no red, no scolding. Today’s phone-calendar events appear alongside as small dots, deduplicated automatically. Future schedules simply show up when their day arrives. Completed schedules automatically leave the list; their records stay in stats and search.
+Timed tasks form a plain text list in time order with the time on the right; overdue items just show the date — no red, no scolding. Today's phone-calendar events appear alongside as small dots, deduplicated automatically. Future schedules simply show up when their day arrives. Completed schedules automatically leave the list; their records stay in stats and search. Drag within the schedule area to reorder: a highlighted gap appears on long-press — drag above to pin on top, below to move down; order persists after restart.
 Use the plus button at the top-right to create schedules: write several on separate lines, pick one shared date and time, and they’re all scheduled at once. On-time floating reminders are on by default; “Add to calendar” and “System alarm” are optional — tap the matching button in the editor, or light up the chip when batch-creating, to trigger them.
-Tap the small circle at the end of a row to “Skip it” (undoable) or “Do it another day” (tomorrow / the day after / in three days / pick a date); long-press the “Schedule” heading to enter selection mode, select all, then tap the trash can in the top bar to bulk-delete — mistakes are undoable.
+Tap the small circle at the end of a row to “Skip it” (undoable) or “Do it another day” (tomorrow / the day after / in three days / pick a date); long-press the “Schedule” heading to enter selection mode, select all, then drag to the bottom trash to bulk-delete — mistakes are undoable.
 
 # Anytime
 Everything without a time lives here. The top-right plus lets you write several at once — lines and sentence punctuation split them automatically.
-Drag the handle to reorder; tap a row to edit it and give it a time to turn it into a schedule.
+Drag between rows to reorder (highlighted gaps appear on long-press, including a top gap to pin on top); tap a row to edit it and give it a time to turn it into a schedule.
 
-# Drag anywhere: into the trash
-Long-press any item (schedule, anytime, step, search result) and drag it up — a red zone with a trash can rises from the bottom. Drop it to delete, with a 5-second undo window. In multi-select mode, dragging one selected item deletes the whole group.
-Shortcuts: drag a home row to the top to make it the focus; drag an anytime task into the schedule area to give it a time. Every mistake can be undone.
+# Drag anywhere: head to drag, tail to multi-select
+Long-press on the head (left): schedule / anytime / step / search result. A red zone with a trash can rises from the bottom — drop it to delete, with a 5-second undo window. In multi-select mode, dragging any one selected item deletes the whole group.
+Long-press on the tail (right) to enter multi-select. In multi-select the head becomes a gray drag handle; the tail has the only check circle (colored = selected). The top bar keeps just two buttons: Select all (gray outline, secondary) and Done (red solid, primary).
+Shortcuts: drag a home row to the top to make it the focus; drag an anytime task into the schedule area to give it a time (cancel leaves the original untouched). Every mistake can be undone.
 
 # Medication
 The capsule icon, first slot of the bottom bar. Flip through dates to see each day's medicine, sorted by time; each card shows the name, dose (e.g. 1 tablet / 0.25g), time and category. The plus button at bottom right creates a plan: enter the name, add dose times one by one (24-hour clock, as many as you like), and optionally fill in dose, category and a start/end date; on save, on-time reminders are set automatically for each time every day, bound to system alarms (rolling 30 days ahead), and deleting the plan cancels them. The calendar icon at top right switches to a month view — see at a glance which days have doses and which are done, and tap a date to jump back to it. Tap the circle on a card to log that dose as taken; filter plans with the category chips on top. Medication data is stored separately and never appears in home lists or search results.

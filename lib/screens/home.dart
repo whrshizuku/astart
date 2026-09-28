@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../channels/native.dart';
 import '../data/item.dart';
@@ -35,6 +36,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _nowMs = 0;
   List<Map<String, Object?>> _events = [];
   bool _overSchedule = false;
+
+  /// 边沿检测：上一次悬停状态（用于 hover 震动只震一次）。
+  bool _prevHoverFocus = false;
+  bool _prevHoverSchedule = false;
+  final Map<String, bool> _prevHoverGap = {};
 
   @override
   void initState() {
@@ -192,6 +198,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// 今天：今天到期 + 过期未完成（未来的日子还没到，先不来添乱）。
+  /// 排序优先用用户手动拖拽写入的 rank（0 视为未排），其次按 dueTime。
   /// 已完成的日程自动从首页移除，数据保留在统计与搜索中。
   List<Item> _todaySchedule() {
     final now = DateTime.now();
@@ -206,7 +213,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             it.id != fid &&
             !it.done)
         .toList()
-      ..sort((a, b) => a.dueTime.compareTo(b.dueTime));
+      ..sort((a, b) {
+        final ra = a.rank == 0 ? 1 << 30 : a.rank;
+        final rb = b.rank == 0 ? 1 << 30 : b.rank;
+        if (ra != rb) return ra.compareTo(rb);
+        return a.dueTime.compareTo(b.dueTime);
+      });
     return list;
   }
 
@@ -252,6 +264,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
 
   Widget _build(BuildContext context) {
+    // DragDockBus 兜底：若 active=true 超过 8 秒视为卡死（正常拖拽不可能撑这么久），
+    // 延迟一帧重置。阈值放宽到 8s 避免慢速拖拽时垃圾桶中途消失。
+    if (DragDockBus.active.value &&
+        DateTime.now().millisecondsSinceEpoch - DragDockBus.lastActiveAt > 8000) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        DragDockBus.active.value = false;
+        DragDockBus.pendingIds = null;
+      });
+    }
+
     final c = ThemeTokens.of(context);
     final s = StartStore.I;
     final focus = s.todayFocus();
@@ -301,12 +323,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   },
                 ),
                 _ClockHead(hhmm: _hhmm, date: _dateLabel, encourage: encourage),
-                // 日程：今天到期 + 过期未完成 + 手机日历，纯文字行；可把随手做拖进来转日程。
+                // 日程区：任何有效条目都能拖进来转日程（不管选没选）。
                 DragTarget<int>(
-                  onWillAcceptWithDetails: (d) => !_selecting,
+                  onWillAcceptWithDetails: (d) => d.data > 0,
                   onAcceptWithDetails: (d) => _dragToSchedule(d.data),
                   builder: (ctx, cand, _) {
                     final hov = cand.isNotEmpty;
+                    // 边沿震动：只在首次进入时震一次，不连震
+                    if (hov && !_prevHoverSchedule) HapticFeedback.lightImpact();
+                    _prevHoverSchedule = hov;
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 140),
                       decoration: BoxDecoration(
@@ -320,10 +345,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             child: _SectionLabel(tr('日程'), onAdd: _newSchedule),
                           ),
                           if (entries.isNotEmpty)
-                            for (var i = 0; i < entries.length; i++) ...[
-                              if (i > 0) const SizedBox(height: S.xxs),
-                              _todayEntry(entries[i]),
-                            ]
+                            ..._scheduleRowsWithGaps(entries, c)
                           else
                             _ListEmpty(msg: tr('还没有日程')),
                           // 选择态追加已完成日程：删除线/弱化色由 _TaskLine 完成态自带。
@@ -349,32 +371,97 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 if (anytime.isNotEmpty)
                   Column(
                     children: [
+                      // 第 0 行上方的插入缝（之前漏了，拖不到最顶）
+                      DragTarget<int>(
+                        onWillAcceptWithDetails: (d) => !_selecting,
+                        onAcceptWithDetails: (d) async {
+                          final o = anytime.indexWhere((e) => e.id == d.data);
+                          if (o < 0) return;
+                          final ids = anytime.map((e) => e.id).toList();
+                          ids.removeAt(o);
+                          ids.insert(0, d.data);
+                          await s.reorder(ids);
+                          if (mounted) setState(() {});
+                        },
+                        builder: (ctx, cand, _) {
+                          final hov = cand.isNotEmpty;
+                          // 边沿震动：只在首次进入时震一次，悬停期间不连震
+                          final key = 'top';
+                          final prev = _prevHoverGap[key] ?? false;
+                          if (hov && !prev) HapticFeedback.lightImpact();
+                          _prevHoverGap[key] = hov;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            curve: Curves.easeOut,
+                            height: hov ? 28 : 0,
+                            margin: hov
+                                ? const EdgeInsets.symmetric(vertical: 4)
+                                : EdgeInsets.zero,
+                            decoration: BoxDecoration(
+                              color: hov
+                                  ? c.accent.withValues(alpha: 0.18)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: hov
+                                  ? [
+                                      BoxShadow(
+                                        color: c.accent.withValues(alpha: 0.3),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
                       for (var i = 0; i < anytime.length; i++) ...[
-                        if (i > 0) const SizedBox(height: S.xxs),
-                        if (i > 0)
+                        _anytimeRow(anytime[i]),
+                        if (i < anytime.length - 1)
                           DragTarget<int>(
                             onWillAcceptWithDetails: (d) => !_selecting,
                             onAcceptWithDetails: (d) async {
                               final o = anytime.indexWhere((e) => e.id == d.data);
                               if (o < 0) return;
                               final ids = anytime.map((e) => e.id).toList();
-                              var n = i;
+                              var n = i + 1;
                               if (n > o) n--;
-                              ids.insert(n, ids.removeAt(o));
+                              ids.removeAt(o);
+                              ids.insert(n, d.data);
                               await s.reorder(ids);
                               if (mounted) setState(() {});
                             },
-                            builder: (ctx, cand, child) {
+                            builder: (ctx, cand, _) {
+                              final hov = cand.isNotEmpty;
+                              final key = 'gap_$i';
+                              final prev = _prevHoverGap[key] ?? false;
+                              if (hov && !prev) HapticFeedback.lightImpact();
+                              _prevHoverGap[key] = hov;
                               return AnimatedContainer(
                                 duration: const Duration(milliseconds: 120),
-                                height: cand.isNotEmpty ? S.sm : 0,
-                                color: cand.isNotEmpty
-                                    ? c.accent.withValues(alpha: 0.15)
-                                    : Colors.transparent,
+                                curve: Curves.easeOut,
+                                height: hov ? 28 : 6,
+                                margin: hov
+                                    ? const EdgeInsets.symmetric(vertical: 4)
+                                    : const EdgeInsets.symmetric(vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: hov
+                                      ? c.accent.withValues(alpha: 0.18)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: hov
+                                      ? [
+                                          BoxShadow(
+                                            color: c.accent.withValues(alpha: 0.3),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
                               );
                             },
                           ),
-                        _anytimeRow(anytime[i]),
                       ],
                     ],
                   )
@@ -386,6 +473,97 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  /// 日程 entries（task + event 混排）生成带排序缝的 rows。
+  /// 手机日历 event 条目不参与排序（只读），缝只插在 task 之间（含首尾）。
+  List<Widget> _scheduleRowsWithGaps(List<Map<String, Object?>> entries, C c) {
+    final s = StartStore.I;
+    final taskIds = <int>[];
+    for (final e in entries) {
+      if (e['kind'] != 'event') taskIds.add((e['item'] as Item).id);
+    }
+    if (taskIds.isEmpty) {
+      // 没日程 task 就直接按 entries 出（只有 event 手机日历条目）
+      final out = <Widget>[];
+      for (var i = 0; i < entries.length; i++) {
+        if (i > 0) out.add(const SizedBox(height: S.xxs));
+        out.add(_todayEntry(entries[i]));
+      }
+      return out;
+    }
+
+    Widget gapWidget(String key, int insertAtTaskIdx, C c) {
+      final prev = _prevHoverGap['sch_$key'] ?? false;
+      return DragTarget<int>(
+        onWillAcceptWithDetails: (d) => !_selecting,
+        onAcceptWithDetails: (d) async {
+          final o = taskIds.indexOf(d.data);
+          if (o < 0) return;
+          final ids = List<int>.from(taskIds);
+          ids.removeAt(o);
+          var n = insertAtTaskIdx;
+          if (n > o) n--;
+          ids.insert(n, d.data);
+          await s.reorder(ids);
+          if (mounted) setState(() {});
+        },
+        builder: (ctx, cand, _) {
+          final hov = cand.isNotEmpty;
+          // 边沿震动：首次进入时震一次，悬停期间不连震
+          if (hov && !prev) HapticFeedback.lightImpact();
+          _prevHoverGap['sch_$key'] = hov;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            height: hov ? 28 : 6,
+            margin: hov
+                ? const EdgeInsets.symmetric(vertical: 4)
+                : const EdgeInsets.symmetric(vertical: 2),
+            decoration: BoxDecoration(
+              color: hov
+                  ? c.accent.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: hov
+                  ? [
+                      BoxShadow(
+                        color: c.accent.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+          );
+        },
+      );
+    }
+
+    final out = <Widget>[];
+    int taskIdx = 0;
+    // 顶缝（第一个 task 之前）
+    out.add(gapWidget('top', 0, c));
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e['kind'] == 'event') {
+        // event 只读，直接插
+        out.add(const SizedBox(height: S.xxs));
+        out.add(_todayEntry(e));
+        continue;
+      }
+      // task
+      if (taskIdx > 0) {
+        // 上一个是 task，插 task->task 的缝
+        out.add(const SizedBox(height: S.xxs));
+        out.add(gapWidget('${taskIdx - 1}to$taskIdx', taskIdx, c));
+      }
+      out.add(_todayEntry(e));
+      taskIdx++;
+    }
+    // 尾缝（最后一个 task 之后）
+    if (taskIdx > 0) out.add(gapWidget('bottom', taskIdx, c));
+    return out;
   }
 
   /// 「今天」列表里的一行：根据选择态走对应的独立行组件。
@@ -408,7 +586,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ================================================================
 
   /// 非选择态行：
-  ///   头部 CheckDot + 长按拖拽（LongPressDraggable<int>）
+  ///   头部 44x44 CheckDot（扩大命中区）+ 长按拖拽（LongPressDraggable<int>）
   ///   尾部 GestureDetector → 长按进多选 / 点击进编辑器
   Widget _itemRowNormal(Item it) {
     final s = StartStore.I;
@@ -417,15 +595,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final progress = s.subtaskProgress(it.id);
     final hasSub = progress[1] > 0;
 
-    final headContent = Padding(
-      padding: const EdgeInsets.only(right: S.sm),
-      child: CheckDot(
-        done: it.done,
-        onTap: () async {
-          it.done = !it.done;
-          await s.put(it);
-          setState(() {});
-        },
+    final headContent = SizedBox(
+      width: 44,
+      height: 44,
+      child: Center(
+        child: CheckDot(
+          done: it.done,
+          onTap: () async {
+            it.done = !it.done;
+            await s.put(it);
+            setState(() {});
+          },
+        ),
       ),
     );
 
@@ -437,16 +618,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onDragStarted: () {
         DragDockBus.active.value = true;
         DragDockBus.pendingIds = null;
+        DragDockBus.lastActiveAt = DateTime.now().millisecondsSinceEpoch;
+        HapticFeedback.mediumImpact();
       },
       onDragEnd: (_) {
         DragDockBus.active.value = false;
         DragDockBus.pendingIds = null;
       },
-      feedback: Material(
-        color: Colors.transparent,
-        child: SizedBox(
-          width: MediaQuery.sizeOf(context).width - S.md * 2,
-          child: _itemRowFull(it),
+      feedback: Transform.scale(
+        scale: 1.02,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(S.radius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: SizedBox(
+              width: MediaQuery.sizeOf(context).width - S.md * 2,
+              child: _itemRowFull(it),
+            ),
+          ),
         ),
       ),
       childWhenDragging: Opacity(opacity: 0.45, child: headContent),
@@ -455,10 +653,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final tail = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onLongPress: () => setState(() {
-        _selecting = true;
-        _selected.add(it.id);
-      }),
+      onLongPress: () {
+        HapticFeedback.selectionClick();
+        setState(() {
+          _selecting = true;
+          _selected.add(it.id);
+        });
+      },
       onTap: () => showItemEditor(context, it, onDeleted: () => setState(() {})),
       child: _itemTailBody(it, c, overdue, hasSub, progress, selecting: false),
     );
@@ -470,8 +671,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// 选择态行：
+  ///   头部 44x44 drag_indicator 拖柄图标（视觉上一眼可辨，消两圈撞车）
   ///   整条 Row 只包一层 DraggableLine（已选可整组拖桶）
-  ///   尾部末尾追加勾选圆圈 Icon（选择 / 取消）
+  ///   尾部末尾是勾选圆圈 Icon（唯一选择/取消入口）
   Widget _itemRowSelecting(Item it) {
     final c = ThemeTokens.of(context);
     final sel = _selected.contains(it.id);
@@ -480,26 +682,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final progress = s.subtaskProgress(it.id);
     final hasSub = progress[1] > 0;
 
-    final headContent = Padding(
-      padding: const EdgeInsets.only(right: S.sm),
-      child: CheckDot(
-        done: it.done,
-        onTap: () async {
-          it.done = !it.done;
-          await s.put(it);
-          setState(() {});
-        },
+    // 选择态头部换成拖柄图标——视觉上一眼区分（灰色拖柄 vs 尾部彩色勾选圆圈），
+    // 消除两个圆圈含义撞车。44x44 透明命中区保证拖起不难。
+    final headContent = SizedBox(
+      width: 44,
+      height: 44,
+      child: Center(
+        child: Icon(Icons.drag_indicator_rounded, size: 22, color: c.inkSoft),
       ),
     );
 
     final tail = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onLongPress: () => setState(() {
-        sel ? _selected.remove(it.id) : _selected.add(it.id);
-      }),
-      onTap: () => setState(() {
-        sel ? _selected.remove(it.id) : _selected.add(it.id);
-      }),
+      onLongPress: () {
+        HapticFeedback.selectionClick();
+        setState(() {
+          sel ? _selected.remove(it.id) : _selected.add(it.id);
+        });
+      },
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() {
+          sel ? _selected.remove(it.id) : _selected.add(it.id);
+        });
+      },
       child: _itemTailBody(it, c, overdue, hasSub, progress, selecting: true, sel: sel),
     );
 
@@ -514,7 +720,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       enabled: sel,
       dragIds: sel && _selected.length > 1 ? _selected.toList() : null,
       selected: sel,
-      onDragStarted: () => setState(() {
+      // 拖拽完全结束后才退出选择态——onDragEnd 时 widget 树完整，
+      // 不会导致 DragDockBus 卡死 / pendingIds 残留。
+      onDragEnd: () => setState(() {
         _selecting = false;
         _selected.clear();
       }),
@@ -581,19 +789,87 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// 非选择态整行克隆（只用于 LongPressDraggable 的 feedback 渲染）。
-  Widget _itemRowFull(Item it) => _itemRowNormal(it);
+  /// 非选择态整行渲染（只供 LongPressDraggable 的 feedback 用，不复用 _itemRowNormal
+  /// 以避免 feedback 里再次嵌套 LongPressDraggable 造成潜在的递归/手势冲突）。
+  Widget _itemRowFull(Item it) {
+    final s = StartStore.I;
+    final c = ThemeTokens.of(context);
+    final overdue = !it.done && it.dueTime > 0 && it.dueTime < _nowMs;
+    final progress = s.subtaskProgress(it.id);
+    final hasSub = progress[1] > 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: S.xs),
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: S.sm),
+            child: CheckDot(
+              done: it.done,
+              onTap: () async {
+                it.done = !it.done;
+                await s.put(it);
+                setState(() {});
+              },
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  it.title.isEmpty ? it.note.split('\n').first : it.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: S.textMd,
+                    color: it.done ? c.done : c.ink,
+                    decoration: it.done ? TextDecoration.lineThrough : null,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (hasSub)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      children: [
+                        Icon(Icons.hexagon_outlined, size: 12, color: c.inkSoft),
+                        const SizedBox(width: S.xxs),
+                        Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
+                            style: TextStyle(fontSize: 11, color: c.inkSoft)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (it.dueTime > 0) ...[
+            const SizedBox(width: S.sm),
+            Text(
+              overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
+              style: TextStyle(
+                  fontSize: S.textSm,
+                  fontWeight: FontWeight.bold,
+                  color: overdue ? c.accent : c.inkSoft),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
-  /// 随手做拖进「日程」区：删原条目并打开编辑器选时间，存好即成日程。
-  /// 移入日程静默处理：不再弹撤销条，数据照常写入。
+  /// 随手做拖进「日程」区：先弹编辑器让用户选时间，**确认后**才删原条目，
+  /// 用户取消则原条目不动，避免静默丢数据。
   Future<void> _dragToSchedule(int id) async {
     final s = StartStore.I;
     final it = s.items.firstWhere((e) => e.id == id, orElse: () => Item());
     if (it.id == 0) return;
-    await s.delete(id, cascade: true);
-    if (!mounted) return;
     final ctx = StartApp.navigatorKey.currentContext ?? context;
-    if (ctx.mounted) await showScheduleEditor(ctx, title: it.title);
+    if (!ctx.mounted) return;
+    final ok = await showScheduleEditor(ctx, title: it.title);
+    if (ok) {
+      await s.delete(id, cascade: true);
+      if (mounted) setState(() {});
+    }
   }
 
   /// 日程区右上角加号：多行批量写入日程（单行也能正常创建）。
@@ -602,21 +878,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (ctx.mounted) await showScheduleBatch(ctx);
   }
 
-  /// 选择态顶栏：关闭 + 计数 + 全选 + 完成。删除统一走底部红色拖桶，
-  /// 顶栏不再放删除按钮，避免两处删除入口冲突。
+  /// 选择态顶栏：关闭 + 计数 + 全选（次级） + 完成（主按钮，accent 实心）。
+  /// 删除统一走底部红色拖桶，顶栏不再放删除按钮。
   Widget _selectBar(C c, List<Item> list) {
+    final allDone = _selected.length == list.length && _selected.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(S.md, S.sm, S.md, S.sm),
       child: Row(
         children: [
           IconBtn(Icons.close, tip: tr('退出选择'), onTap: () {
+            HapticFeedback.selectionClick();
             setState(() {
               _selecting = false;
               _selected.clear();
             });
           }),
           const SizedBox(width: S.sm),
-          Flexible(
+          Expanded(
             child: Text(tr('已选 {0}', [_selected.length]),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -626,15 +904,60 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     color: c.ink,
                     fontFeatures: const [FontFeature.tabularFigures()])),
           ),
-          const Spacer(),
-          IconBtn(Icons.select_all_outlined, tip: tr('全选'), onTap: () {
-            setState(() {
-              _selected.length == list.length
-                  ? _selected.clear()
-                  : _selected.addAll(list.map((e) => e.id));
-            });
-          }),
-          IconBtn(Icons.check_circle_outline, tip: tr('完成'), onTap: _batchComplete),
+          const SizedBox(width: S.sm),
+          // 全选：次级 outline 小按钮
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: c.inkSoft,
+              side: BorderSide(color: c.inkSoft.withValues(alpha: 0.3), width: 1),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              setState(() {
+                allDone
+                    ? _selected.clear()
+                    : _selected.addAll(list.map((e) => e.id));
+              });
+            },
+            child: Icon(allDone ? Icons.deselect : Icons.select_all, size: 18),
+          ),
+          const SizedBox(width: S.sm),
+          // 完成：主按钮，accent 实心圆角
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: c.accent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: _selected.isEmpty
+                ? null
+                : () {
+                    HapticFeedback.mediumImpact();
+                    _batchComplete();
+                  },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check, size: 18),
+                const SizedBox(width: 4),
+                Text(tr('完成'),
+                    style: const TextStyle(
+                        fontSize: S.textSm, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
         ],
       ),
     );

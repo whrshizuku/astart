@@ -162,10 +162,20 @@ class DragDockBus {
 
   /// 整批拖拽暂存：多选拖起时由页面写入整组 id，垃圾桶落点读取后清空。
   static List<int>? pendingIds;
+
+  /// 最后一次 onDragStarted 的时间戳（毫秒）。
+  /// 用于首页兜底：若 active=true 但距此 >3s 则视为卡死强制重置，
+  /// 避免拖拽中 store 变化触发 rebuild 导致 onDragEnd 未触发时永久残留。
+  static int lastActiveAt = 0;
 }
 
 /// 全局统一长按拖拽行：拖起唤出底部落点底座，反馈样式全局一致
 /// （番茄浅底圆角卡，跟随手指）。[enabled]=false 时（如批量选择态）禁用拖拽。
+///
+/// 关键约束：onDragStarted 内部会 setState DragDockBus，如果外部也在 onDragStarted
+/// 回调里 setState 父页面，会导致 widget 树重建 → 本组件 dispose → onDragEnd
+/// 永远不触发 → DragDockBus 卡死、pendingIds 残留。**onDragStarted 回调里绝对不能
+/// setState。** 任何需要在拖拽结束后做的事（如退出多选态）请走 [onDragEnd]。
 class DraggableLine extends StatelessWidget {
   final int id;
   final String title;
@@ -178,8 +188,10 @@ class DraggableLine extends StatelessWidget {
   /// 整组拖拽时本条也在选中集里：原位同样变半透明。
   final bool selected;
 
-  /// 拖起回调（页面用来退出选择态等）。
-  final VoidCallback? onDragStarted;
+  /// 拖拽完全结束后的回调（含落桶、松手放回、取消三种情况都会触发）。
+  /// 这里可以安全地 setState 父页面（如退出多选态）。
+  final VoidCallback? onDragEnd;
+
   const DraggableLine({
     super.key,
     required this.id,
@@ -188,7 +200,7 @@ class DraggableLine extends StatelessWidget {
     this.enabled = true,
     this.dragIds,
     this.selected = false,
-    this.onDragStarted,
+    this.onDragEnd,
   });
 
   @override
@@ -203,39 +215,63 @@ class DraggableLine extends StatelessWidget {
       onDragStarted: () {
         DragDockBus.active.value = true;
         DragDockBus.pendingIds = batch > 1 ? List.of(dragIds!) : null;
-        onDragStarted?.call();
+        DragDockBus.lastActiveAt = DateTime.now().millisecondsSinceEpoch;
+        HapticFeedback.mediumImpact();
       },
       onDragEnd: (_) {
         DragDockBus.active.value = false;
         DragDockBus.pendingIds = null;
+        onDragEnd?.call();
       },
-      feedback: Material(
-        color: Colors.transparent,
-        child: SizedBox(
-          width: MediaQuery.sizeOf(context).width - S.md * 2,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              child,
-              if (batch > 1)
-                Positioned(
-                  top: -8,
-                  right: -8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: c.accent,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(tr('{0} 条', [batch]),
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white)),
-                  ),
-                ),
+      feedback: Transform.scale(
+        scale: 1.02,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(S.radius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
             ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: SizedBox(
+              width: MediaQuery.sizeOf(context).width - S.md * 2,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  child,
+                  if (batch > 1)
+                    Positioned(
+                      top: -8,
+                      right: -8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: c.accent,
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: [
+                            BoxShadow(
+                              color: c.accent.withValues(alpha: 0.5),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(tr('{0} 条', [batch]),
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

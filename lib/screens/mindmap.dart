@@ -184,7 +184,8 @@ class _MindMapScreenState extends State<MindMapScreen> {
                 count: total,
                 onBack: () => Navigator.pop(context),
                 actions: [
-                  IconBtn(Icons.add, tip: tr('新建导图'), onTap: _newMap),
+                  IconBtn(Icons.playlist_add, tip: tr('批量导入日程/随手做/步骤'),
+                      onTap: () => _importItems(widget.rootId)),
                   if (_delta.isNotEmpty)
                     IconBtn(Icons.restart_alt, tip: tr('重排'), onTap: () => setState(() => _delta.clear())),
                 ]),
@@ -281,7 +282,11 @@ class _MindMapScreenState extends State<MindMapScreen> {
     );
   }
 
-  /// 底部工具列：选中节点后给出 加子/加同级/编辑/删除；批量态给 全选/删除/退出。
+  /// 底部工具列：非选择态按选中情况给出「根选中」与「非根选中」两档精简按钮，
+  /// 避免原先一行 6 个 IconBtn 挤成一团的套娃感。
+  ///   根选中 → 加子节点（accent 主按钮）+ 导入 + 批量
+  ///   非根选中 → 加子（主）+ 导入 + 编辑 + 删除（红）+ 批量
+  ///   未选中 → 只有「批量」入口
   Widget _toolbar(C c) {
     final s = StartStore.I;
     if (_selecting) {
@@ -332,8 +337,37 @@ class _MindMapScreenState extends State<MindMapScreen> {
         ),
       );
     }
+
     final selItem = _sel == 0 ? null : s.byId(_sel);
     final isRootSel = _sel == widget.rootId;
+
+    // 未选中：只留「批量」入口，别让空工具栏晃眼
+    if (_sel == 0) {
+      return Container(
+        decoration: BoxDecoration(
+          color: c.card,
+          border: Border(top: BorderSide(color: c.line)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: S.md, vertical: S.xs),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                IconBtn(Icons.checklist_outlined, tip: tr('批量整理'),
+                    onTap: () => setState(() {
+                          _selecting = true;
+                          _selected.clear();
+                        })),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 选中：加子节点（主）+ 非根时 编辑/删除 + 批量
     return Container(
       decoration: BoxDecoration(
         color: c.card,
@@ -346,35 +380,28 @@ class _MindMapScreenState extends State<MindMapScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
+              // 加子节点：主操作，accent 实心样式
               IconBtn(Icons.subdirectory_arrow_right,
-                  tip: tr(tr('加子节点')),
+                  tip: tr('加子节点'),
                   color: c.accent,
-                  onTap: () => _addNode(_sel == 0 ? widget.rootId : _sel)),
-              IconBtn(Icons.download_outlined,
-                  tip: tr('导入日程 / 随手做 / 步骤'),
-                  onTap: () => _importItems(_sel == 0 ? widget.rootId : _sel)),
-              if (_sel != 0 && !isRootSel)
-                IconBtn(Icons.playlist_add, tip: tr('加同级节点'),
-                    onTap: () {
-                      final p = selItem?.parentId ?? widget.rootId;
-                      _addNode(p);
-                    }),
-              if (_sel != 0 && selItem != null)
-                IconBtn(Icons.edit_outlined, tip: tr('编辑'), onTap: () => _editNode(selItem)),
-              if (_sel != 0 && !isRootSel)
-                IconBtn(Icons.delete_outline, tip: tr('删除（含子枝）'),
+                  onTap: () => _addNode(_sel)),
+              // 非根节点才给「编辑」「删除」（根不可删）
+              if (!isRootSel) ...[
+                IconBtn(Icons.edit_outlined, tip: tr('编辑'), onTap: () => _editNode(selItem!)),
+                IconBtn(Icons.delete_outline, tip: tr('删除（含子枝）'), color: c.accent,
                     onTap: () async {
                       final snap = s.exportJson();
                       s.delete(_sel, cascade: true);
                       setState(() => _sel = 0);
                       if (!mounted) return;
-                      UndoHost.show(context, tr(tr('剪掉一枝')), () async => s.restoreJson(snap));
+                      UndoHost.show(context, tr('剪掉一枝'), () async => s.restoreJson(snap));
                     }),
-              IconBtn(Icons.checklist_outlined, tip: tr('批量删除'),
+              ],
+              // 批量入口（始终有）
+              IconBtn(Icons.checklist_outlined, tip: tr('批量整理'),
                   onTap: () => setState(() {
                         _selecting = true;
                         _selected.clear();
-                        if (_sel != 0 && _sel != widget.rootId) _selected.add(_sel);
                       })),
             ],
           ),
@@ -665,17 +692,6 @@ class _MindMapScreenState extends State<MindMapScreen> {
       );
     });
     if (mounted) setState(() {});
-  }
-
-  /// 新建导图：从零起一个空根节点，进编辑态直接写标题。
-  Future<void> _newMap() async {
-    final root = Item()..kind = Item.kindInbox..title = '';
-    await StartStore.I.put(root);
-    if (!mounted) return;
-    // 替换当前导图页为新根节点（旧页出栈）。
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => MindMapScreen(rootId: root.id)),
-    );
   }
 }
 

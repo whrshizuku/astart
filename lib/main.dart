@@ -216,12 +216,13 @@ class GlobalDragDock {
   static Future<void> handleTrash(int id) async {
     if (id <= 0) return;
     final s = StartStore.I;
-    // 多选整批拖入：一次删除、一次撤销（防误删 6 秒窗口由 UndoHost 保证）。
-    final ids = DragDockBus.pendingIds;
+    // 多选整批拖入：只有 d.data 确实在 pendingIds 里才整组删（防 pendingIds 残留脏数据）。
+    final pending = DragDockBus.pendingIds;
     DragDockBus.pendingIds = null;
-    if (ids != null && ids.length > 1) {
-      final snap = await s.deleteAll(ids);
-      _showUndoWhenIdle(tr('删了 {0} 条', [ids.length]), () async => s.restoreJson(snap));
+    if (pending != null && pending.length > 1 && pending.contains(id)) {
+      final snap = await s.deleteAll(pending);
+      _showUndoWhenIdle(tr('删了 {0} 条', [pending.length]),
+          () async => s.restoreJson(snap));
       return;
     }
     if (s.byId(id) == null) return;

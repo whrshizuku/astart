@@ -22,18 +22,21 @@ Future<void> showItemEditor(BuildContext context, Item it,
 
 /// 新建日程统一入口：先依次选日期、时间（任一步取消即放弃，不落任何数据），
 /// 再打开编辑器写标题。避免在编辑器弹层上叠开选择弹层导致时序错乱。
-Future<void> showScheduleEditor(BuildContext context, {String? title}) async {
+/// 返回 true = 用户走完流程存了日程；false = 中途取消。
+Future<bool> showScheduleEditor(BuildContext context, {String? title}) async {
   final now = DateTime.now();
   final d = await showStartDatePicker(context, initial: now);
-  if (d == null || !context.mounted) return;
+  if (d == null || !context.mounted) return false;
   final t = await showStartTimePicker(context, initial: TimeOfDay.fromDateTime(now));
-  if (t == null || !context.mounted) return;
+  if (t == null || !context.mounted) return false;
   final it = Item()
     ..dueTime = DateTime(d.year, d.month, d.day, t.hour, t.minute).millisecondsSinceEpoch
     // 设了时间默认开到点提醒（编辑器里可随手关）。
     ..alarm = true;
   if (title != null && title.trim().isNotEmpty) it.title = title.trim();
   await showItemEditor(context, it, asSchedule: true);
+  // 编辑器关了之后，若条目有 dueTime 说明用户确认了；否则是取消。
+  return it.dueTime > 0;
 }
 
 class _EditorSheet extends StatefulWidget {

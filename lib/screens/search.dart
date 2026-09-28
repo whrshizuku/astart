@@ -210,7 +210,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                     ? _selected.toList()
                                     : null,
                                 selected: sel,
-                                onDragStarted: () => setState(() {
+                                onDragEnd: () => setState(() {
                                   _selecting = false;
                                   _selected.clear();
                                 }),

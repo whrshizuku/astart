@@ -233,7 +233,7 @@ class _StepsScreenState extends State<StepsScreen> {
                       onToggleSelect: (id) => setState(() {
                         _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
                       }),
-                      onDragStarted: () => setState(() {
+                      onDragEnd: () => setState(() {
                         _selecting = false;
                         _selected.clear();
                       }),
@@ -283,7 +283,7 @@ class _StepList extends StatelessWidget {
   final ValueChanged<int> onToggleSelect;
   final ValueChanged<Item> onEdit;
   final void Function(int oldIndex, int newIndex) onReorder;
-  final VoidCallback onDragStarted;
+  final VoidCallback onDragEnd;
 
   const _StepList({
     required this.steps,
@@ -293,7 +293,7 @@ class _StepList extends StatelessWidget {
     required this.onToggleSelect,
     required this.onEdit,
     required this.onReorder,
-    required this.onDragStarted,
+    required this.onDragEnd,
   });
 
   @override
@@ -327,7 +327,7 @@ class _StepList extends StatelessWidget {
                 ? selected.toList()
                 : null,
             selected: sel,
-            onDragStarted: onDragStarted,
+            onDragEnd: onDragEnd,
             child: Pressable(
             onTap: selecting
                 ? () => onToggleSelect(it.id)
