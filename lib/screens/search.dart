@@ -390,6 +390,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                     _selecting = false;
                                     _selected.clear();
                                   });
+                                  if (!context.mounted) return;
                                   UndoHost.show(
                                       context,
                                       tr('已完成 {0} 件', [n]),

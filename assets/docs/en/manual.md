@@ -57,7 +57,7 @@ Everything without a time lives here. The top-right plus lets you write several 
 
 # Medication
 
-The capsule icon, first slot of the bottom bar. Flip through dates to see each day's medicine, sorted by time; each card shows the name, dose, time and category. The plus button at bottom right creates a plan: enter the name, add dose times one by one (24-hour clock), and optionally dose, category, start/end dates; on save, on-time reminders are set daily and bound to system alarms (rolling 30 days ahead). The calendar icon at top right switches to a month view — see which days have doses and which are done at a glance. Tap the circle on a card to log that dose as taken. Medication data is stored separately and never appears in home lists or search results.
+The capsule icon, first slot of the bottom bar. Flip through dates to see each day's medicine, sorted by time; each card shows the name, dose, time and category. The plus button at bottom right creates a plan: enter the name, add dose times one by one (24-hour clock), and optionally dose, category, start/end dates; on save, on-time reminders are set daily and bound to system alarms (rolling 30 days ahead). The calendar icon at top right switches to a month view — the dot under each date tells the story at a glance: green = all doses taken, yellow = partially taken, tomato red = missed (grey = future). Tap the circle on a card to log that dose as taken. Medication data is stored separately and never appears in home lists or search results.
 
 # Search
 

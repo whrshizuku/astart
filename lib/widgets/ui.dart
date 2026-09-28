@@ -579,7 +579,7 @@ class QuickInputBar extends StatelessWidget {
 }
 
 /// 全局拖拽删除底座：任何条目长按拖起时，底部升起一条番茄红区域，
-/// 中央一个垃圾桶——把条目扔进去即删（6 秒可撤销）。
+/// 中央一个垃圾桶——把条目扔进去即删（5 秒可撤销）。
 /// 挂在 MaterialApp.builder 顶层，监听 [DragDockBus.active]。
 class DragDock extends StatelessWidget {
   final Future<void> Function(int id)? onTrash;

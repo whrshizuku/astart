@@ -7,9 +7,13 @@ import '../utils/update_checker.dart';
 import '../widgets/ui.dart';
 import 'ai_settings.dart';
 import 'cloud_settings.dart';
-import 'manual.dart';
 import 'lab.dart';
 import '../l10n/i18n.dart';
+
+/// 使用说明 / 用户协议 / 隐私政策 / 开源协议统一跳仓库页面（以仓库实际文件为准），
+/// 随界面语言选对应目录（Lang.current 即目录名 zh-CN/zh-TW/en/ja）。
+String _docUrl(String name) =>
+    'https://gitee.com/dubwhr/astart/blob/master/assets/docs/${Lang.current}/$name.md';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -115,26 +119,22 @@ class SettingsScreen extends StatelessWidget {
             _NavTile(
               icon: Icons.menu_book_outlined,
               title: tr('使用说明'),
-              onTap: () => Navigator.of(context, rootNavigator: true)
-                  .push(MaterialPageRoute(builder: (_) => const ManualScreen())),
+              onTap: () => Native.openUrl(_docUrl('manual')),
             ),
             _NavTile(
               icon: Icons.description_outlined,
               title: tr('用户协议'),
-              onTap: () => Navigator.of(context, rootNavigator: true)
-                  .push(MaterialPageRoute(builder: (_) => const AgreeScreen(privacy: false))),
+              onTap: () => Native.openUrl(_docUrl('terms')),
             ),
             _NavTile(
               icon: Icons.privacy_tip_outlined,
               title: tr('隐私政策'),
-              onTap: () => Navigator.of(context, rootNavigator: true)
-                  .push(MaterialPageRoute(builder: (_) => const AgreeScreen(privacy: true))),
+              onTap: () => Native.openUrl(_docUrl('privacy')),
             ),
             _NavTile(
               icon: Icons.gavel_outlined,
               title: tr('开源协议'),
-              onTap: () => Navigator.of(context, rootNavigator: true)
-                  .push(MaterialPageRoute(builder: (_) => const LicenseScreen())),
+              onTap: () => Native.openUrl(_docUrl('license')),
             ),
             _NavTile(
               icon: Icons.code,

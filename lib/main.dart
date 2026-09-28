@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'data/item.dart';
 import 'data/store.dart';
 import 'channels/native.dart';
 import 'screens/dump.dart';

@@ -123,7 +123,7 @@ class _SegmentScreenState extends State<SegmentScreen> {
                         return Padding(
                           key: ValueKey(it.id),
                           padding: const EdgeInsets.only(bottom: S.xs),
-                          // 全局拖拽底座：长按拖起→底部桶删除（6 秒可撤销）/开成导图；
+                          // 全局拖拽底座：长按拖起→底部桶删除（5 秒可撤销）/开成导图；
                           // 多选时拖起任一已选条目=整组拖，浮影带数量标。
                           child: DraggableLine(
                             id: it.id,

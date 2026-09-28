@@ -470,7 +470,7 @@ class _CatChip extends StatelessWidget {
   }
 }
 
-/// 服药日历：月历格子 + 每日状态点（绿=全服/橙=部分/红=漏服/灰=未来）。
+/// 服药日历：月历格子 + 每日状态点（绿=全服/黄=部分/番茄红=漏服/灰=未来）。
 class _MedCalendar extends StatelessWidget {
   final DateTime month;
   final int Function(DateTime) statusOf;
@@ -553,11 +553,11 @@ class _MedCalendar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _legend(c, c.accent, tr('已服')),
+            _legend(c, const Color(0xFF43A047), tr('已服')),
             const SizedBox(width: S.md),
-            _legend(c, Colors.orange, tr('部分')),
+            _legend(c, const Color(0xFFFBC02D), tr('部分')),
             const SizedBox(width: S.md),
-            _legend(c, Colors.red, tr('漏服')),
+            _legend(c, c.accent, tr('漏服')),
           ],
         ),
       ],
@@ -586,10 +586,11 @@ class _MedCalendar extends StatelessWidget {
     final d = DateTime(month.year, month.month, dayNum);
     final status = statusOf(d);
     final isToday = d == today;
+    // 绿=全部已服，黄=部分已服，番茄红（主题 accent）=漏服（与首页过期日程同色），灰=未来。
     final dotColor = switch (status) {
-      3 => c.accent,
-      2 => Colors.orange,
-      1 => Colors.red,
+      3 => const Color(0xFF43A047),
+      2 => const Color(0xFFFBC02D),
+      1 => c.accent,
       4 => c.line,
       _ => Colors.transparent,
     };
@@ -728,7 +729,7 @@ class _PlanLine extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: S.xs),
-      // 接入全局拖拽删除：长按拖起 → 底部红区垃圾桶 → 6 秒可撤销。
+      // 接入全局拖拽删除：长按拖起 → 底部红区垃圾桶 → 5 秒可撤销。
       // 点卡片编辑、拖到红区删除，与首页行交互一致，不再放编辑/删除小按钮。
       child: DraggableLine(
         key: ValueKey('${plan.id}_$time'),

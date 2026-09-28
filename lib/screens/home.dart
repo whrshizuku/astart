@@ -35,10 +35,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _dateLabel = '';
   int _nowMs = 0;
   List<Map<String, Object?>> _events = [];
-  bool _overSchedule = false;
 
   /// 边沿检测：上一次悬停状态（用于 hover 震动只震一次）。
-  bool _prevHoverFocus = false;
   bool _prevHoverSchedule = false;
   final Map<String, bool> _prevHoverGap = {};
 
@@ -348,7 +346,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             ..._scheduleRowsWithGaps(entries, c)
                           else
                             _ListEmpty(msg: tr('还没有日程')),
-                          // 选择态追加已完成日程：删除线/弱化色由 _TaskLine 完成态自带。
+                          // 选择态追加已完成日程：删除线/弱化色由行组件完成态自带。
                           if (_selecting)
                             for (var i = 0; i < doneSchedule.length; i++) ...[
                               const SizedBox(height: S.xxs),
@@ -586,7 +584,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ================================================================
 
   /// 非选择态行：
-  ///   头部 44x44 CheckDot（扩大命中区）+ 长按拖拽（LongPressDraggable<int>）
+  ///   头部 44x44 CheckDot（扩大命中区）+ 长按拖拽（LongPressDraggable 120ms）
   ///   尾部 GestureDetector → 长按进多选 / 点击进编辑器
   Widget _itemRowNormal(Item it) {
     final s = StartStore.I;
@@ -769,7 +767,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!ctx.mounted) return;
     final ok = await showScheduleEditor(ctx, title: it.title);
     if (ok) {
-      await s.delete(id, cascade: true);
+      s.delete(id, cascade: true);
       if (mounted) setState(() {});
     }
   }
@@ -1348,122 +1346,8 @@ class _TimeChipState extends State<_TimeChip> {
   }
 }
 
-/// 任务行（日程 / 随手做共用）：勾选、标题、小步骤进度、时刻，纯文字不套卡片。
-class _TaskLine extends StatelessWidget {
-  final Item it;
-  final int nowMs;
-  final bool selecting;
-  final Set<int> selected;
-  final VoidCallback onChange;
-  const _TaskLine({
-    required this.it,
-    required this.nowMs,
-    required this.selecting,
-    required this.selected,
-    required this.onChange,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = ThemeTokens.of(context);
-    final s = StartStore.I;
-    final progress = s.subtaskProgress(it.id);
-    final hasSub = progress[1] > 0;
-    final sel = selected.contains(it.id);
-    final overdue = !it.done && it.dueTime > 0 && it.dueTime < nowMs;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: S.xs),
-      child: Pressable(
-        onTap: selecting
-            ? () { selected.contains(it.id) ? selected.remove(it.id) : selected.add(it.id); onChange(); }
-            : () => showItemEditor(context, it, onDeleted: onChange),
-        child: Row(
-          children: [
-            if (selecting)
-              Icon(
-                sel ? Icons.check_circle : Icons.circle_outlined,
-                color: sel ? c.accent : c.inkSoft,
-                size: 22,
-              )
-            else
-              CheckDot(done: it.done, onTap: () async {
-                it.done = !it.done;
-                await s.put(it);
-                onChange();
-              }),
-            const SizedBox(width: S.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    it.title.isEmpty ? it.note.split('\n').first : it.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: S.textMd,
-                      color: it.done ? c.done : c.ink,
-                      decoration: it.done ? TextDecoration.lineThrough : null,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (hasSub)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        children: [
-                          Icon(Icons.hexagon_outlined, size: 12, color: c.inkSoft),
-                          const SizedBox(width: S.xxs),
-                          Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: c.inkSoft,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures()
-                                  ])),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (it.dueTime > 0) ...[
-              const SizedBox(width: S.sm),
-              selecting
-                  ? Text(
-                      overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
-                      style: TextStyle(
-                          fontSize: S.textSm,
-                          fontWeight: FontWeight.bold,
-                          color: overdue ? c.inkSoft : c.accent,
-                          fontFeatures: const [FontFeature.tabularFigures()]),
-                    )
-                  : _TimeChip(it: it, overdue: overdue, onChange: onChange),
-              if (!selecting) ...[
-                const SizedBox(width: S.xxs),
-                _ScheduleActions(it: it, onChange: onChange),
-              ],
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  static String _hm(int ms) {
-    final d = DateTime.fromMillisecondsSinceEpoch(ms);
-    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-  }
-
-  static String _mmdd(int ms) {
-    final d = DateTime.fromMillisecondsSinceEpoch(ms);
-    return '${d.month}/${d.day}';
-  }
-}
-
 /// 日程条目的「不做了 / 改日再做」：右侧小圆钮展开两个小胶囊，不遮挡标题。
-/// 不做了 = 删除（6 秒可撤销）；改日再做 = 日期往后推（+1/+2/+3 天或选日期），
+/// 不做了 = 删除（5 秒可撤销）；改日再做 = 日期往后推（+1/+2/+3 天或选日期），
 /// 提醒与日历随 StartStore.put 自动重挂。
 class _ScheduleActions extends StatefulWidget {
   final Item it;
@@ -1482,7 +1366,7 @@ class _ScheduleActionsState extends State<_ScheduleActions> {
     if (widget.it.id <= 0) return;
     final s = StartStore.I;
     final snap = s.exportJson();
-    await s.delete(widget.it.id, cascade: true);
+    s.delete(widget.it.id, cascade: true);
     widget.onChange();
     if (!context.mounted) return;
     UndoHost.show(context, tr('不做了'), () async => s.restoreJson(snap));

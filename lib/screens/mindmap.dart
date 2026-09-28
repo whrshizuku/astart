@@ -588,63 +588,6 @@ class _MindMapScreenState extends State<MindMapScreen> {
     if (mounted) setState(() {});
   }
 
-  /// 长按节点：快捷编辑菜单（编辑文字 / 加子节点 / 剪掉这枝）。
-  Future<void> _nodeMenu(Item n) async {
-    final s = StartStore.I;
-    final c = ThemeTokens.of(context);
-    final isRoot = n.id == widget.rootId;
-    await showStartSheet(context, (ctx) {
-      Widget row(IconData icon, String text, VoidCallback onTap,
-              {Color? color}) =>
-          Pressable(
-            onTap: () {
-              Navigator.pop(ctx);
-              onTap();
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: S.sm),
-              child: Row(
-                children: [
-                  Icon(icon, size: 20, color: color ?? c.ink),
-                  const SizedBox(width: S.sm),
-                  Flexible(
-                    child: Text(text,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: S.textMd,
-                            fontWeight: FontWeight.bold,
-                            color: color ?? c.ink)),
-                  ),
-                ],
-              ),
-            ),
-          );
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(S.md, S.md, S.md, S.md),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(n.title.trim().isEmpty ? tr('（空）') : n.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: S.textMd,
-                    fontWeight: FontWeight.bold,
-                    color: c.ink)),
-            const SizedBox(height: S.xs),
-            row(Icons.edit_outlined, tr('编辑文字'), () async => _editNode(n)),
-            row(Icons.subdirectory_arrow_right, tr('加子节点'),
-                () => _addNode(n.id), color: c.accent),
-            // 删除统一长按拖进底部红桶（全局交互统一），快捷菜单不再提供删除入口。
-          ],
-        ),
-      );
-    });
-    if (mounted) setState(() {});
-  }
-
   /// 编辑节点文本；新建时留空则删除该节点。
   Future<void> _editNode(Item n, {bool removeIfEmpty = false}) async {
     final ctl = TextEditingController(text: n.title);
