@@ -341,51 +341,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     );
                   },
                 ),
-                // 随手做：没定时间的都待在这，可拖动排序；长按整行拖进上面「日程」区转日程。
+                // 随手做：没定时间的都待在这，头部长按可跨模块拖拽/排序/删，尾部长按进多选。
                 GestureDetector(
                   onLongPress: () => setState(() => _selecting = true),
                   child: _SectionLabel(tr('随手做'), onAdd: _quickAdd),
                 ),
                 if (anytime.isNotEmpty)
-                  ReorderableListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    // 关默认拖柄，拖拽统一走 DraggableLine，避免两套拖拽源冲突导致手势错乱与布局异常
-                    buildDefaultDragHandles: false,
-                    proxyDecorator: (child, i, a) => ScaleTransition(scale: a, child: child),
-                    itemCount: anytime.length,
-                    onReorder: (o, n) async {
-                      final ids = anytime.map((e) => e.id).toList();
-                      if (n > o) n--;
-                      ids.insert(n, ids.removeAt(o));
-                      await s.reorder(ids);
-                    },
-                    itemBuilder: (_, i) {
-                      final it = anytime[i];
-                      final sel = _selected.contains(it.id);
-                      return DraggableLine(
-                        key: ValueKey(it.id),
-                        id: it.id,
-                        title: it.title,
-                        // 选择态：已选条目可整组拖删，未选条目禁拖。
-                        enabled: !_selecting || sel,
-                        dragIds: _selecting && sel && _selected.length > 1
-                            ? _selected.toList()
-                            : null,
-                        selected: sel,
-                        onDragStarted: () => setState(() {
-                          _selecting = false;
-                          _selected.clear();
-                        }),
-                        child: _TaskLine(
-                          it: it,
-                          nowMs: _nowMs,
-                          selecting: _selecting,
-                          selected: _selected,
-                          onChange: () => setState(() {}),
-                        ),
-                      );
-                    },
+                  Column(
+                    children: [
+                      for (var i = 0; i < anytime.length; i++) ...[
+                        if (i > 0) const SizedBox(height: S.xxs),
+                        if (i > 0)
+                          DragTarget<int>(
+                            onWillAcceptWithDetails: (d) => !_selecting,
+                            onAcceptWithDetails: (d) async {
+                              final o = anytime.indexWhere((e) => e.id == d.data);
+                              if (o < 0) return;
+                              final ids = anytime.map((e) => e.id).toList();
+                              var n = i;
+                              if (n > o) n--;
+                              ids.insert(n, ids.removeAt(o));
+                              await s.reorder(ids);
+                              if (mounted) setState(() {});
+                            },
+                            builder: (ctx, cand, child) {
+                              return AnimatedContainer(
+                                duration: const Duration(milliseconds: 120),
+                                height: cand.isNotEmpty ? S.sm : 0,
+                                color: cand.isNotEmpty
+                                    ? c.accent.withValues(alpha: 0.15)
+                                    : Colors.transparent,
+                              );
+                            },
+                          ),
+                        _anytimeRow(anytime[i]),
+                      ],
+                    ],
                   )
                 else
                   _ListEmpty(msg: tr('随手做的事，会排在这里')),
@@ -397,38 +388,231 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// 「今天」列表里的一行：非选择态长按进入多选并选中本条；
-  /// 选择态内已选条目可整组拖垃圾桶删除，未选条目禁拖。
+  /// 「今天」列表里的一行：统一走 _ItemRow，头部长按拖拽，尾部长按多选。
   Widget _todayEntry(Map<String, Object?> e) {
     if (e['kind'] == 'event') {
       final ev = e['event'] as Map<String, Object?>;
       return _EventLine(event: ev, nowMs: _nowMs);
     }
-    final it = e['item'] as Item;
+    return _itemRow(e['item'] as Item);
+  }
+
+  /// 随手做区的一行：也是 _ItemRow，头尾拆分统一交互。
+  Widget _anytimeRow(Item it) => _itemRow(it);
+
+  /// 统一行组件（日程 / 随手做共用）：
+  /// 头部（左 ~30%）→ 长按拖拽（跨模块 / 排序 / 底部红桶删除）
+  /// 尾部（右 ~70%）→ 长按进多选（或选择态内切换选中），点击进编辑器 / 勾选完成
+  Widget _itemRow(Item it) {
+    final s = StartStore.I;
+    final c = ThemeTokens.of(context);
     final sel = _selected.contains(it.id);
-    final line = _TaskLine(
-      it: it,
-      nowMs: _nowMs,
-      selecting: _selecting,
-      selected: _selected,
-      onChange: () => setState(() {}),
+    final overdue = !it.done && it.dueTime > 0 && it.dueTime < _nowMs;
+    final progress = s.subtaskProgress(it.id);
+    final hasSub = progress[1] > 0;
+
+    // 头部只做拖拽触发区 + 完成标记 CheckDot；勾选圆圈统一放尾部。
+    Widget head() {
+      final headContent = Padding(
+        padding: const EdgeInsets.only(right: S.sm),
+        child: CheckDot(
+          done: it.done,
+          onTap: () async {
+            it.done = !it.done;
+            await s.put(it);
+            setState(() {});
+          },
+        ),
+      );
+
+      if (_selecting) {
+        // 选择态：整条 Row 由外层 DraggableLine 包裹（见返回值），
+        // 头部在这里也走 DraggableLine 只负责整组拖桶。
+        return DraggableLine(
+          id: it.id,
+          title: it.title,
+          enabled: sel,
+          dragIds: sel && _selected.length > 1 ? _selected.toList() : null,
+          selected: sel,
+          onDragStarted: () => setState(() {
+            _selecting = false;
+            _selected.clear();
+          }),
+          child: headContent,
+        );
+      }
+      // 非选择态：头部长按 = 单条拖拽
+      return LongPressDraggable<int>(
+        data: it.id,
+        maxSimultaneousDrags: 1,
+        delay: const Duration(milliseconds: 120),
+        rootOverlay: true,
+        onDragStarted: () {
+          DragDockBus.active.value = true;
+          DragDockBus.pendingIds = null;
+        },
+        onDragEnd: (_) {
+          DragDockBus.active.value = false;
+          DragDockBus.pendingIds = null;
+        },
+        feedback: Material(
+          color: Colors.transparent,
+          child: SizedBox(
+            width: MediaQuery.sizeOf(context).width - S.md * 2,
+            child: _itemRowFull(it),
+          ),
+        ),
+        childWhenDragging: Opacity(opacity: 0.45, child: headContent),
+        child: headContent,
+      );
+    }
+
+    final tail = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () {
+        if (_selecting) {
+          setState(() {
+            sel ? _selected.remove(it.id) : _selected.add(it.id);
+          });
+        } else {
+          setState(() {
+            _selecting = true;
+            _selected.add(it.id);
+          });
+        }
+      },
+      onTap: () {
+        if (_selecting) {
+          setState(() {
+            sel ? _selected.remove(it.id) : _selected.add(it.id);
+          });
+        } else {
+          showItemEditor(context, it, onDeleted: () => setState(() {}));
+        }
+      },
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  it.title.isEmpty ? it.note.split('\n').first : it.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: S.textMd,
+                    color: it.done ? c.done : c.ink,
+                    decoration: it.done ? TextDecoration.lineThrough : null,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (hasSub)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      children: [
+                        Icon(Icons.hexagon_outlined, size: 12, color: c.inkSoft),
+                        const SizedBox(width: S.xxs),
+                        Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: c.inkSoft,
+                                fontFeatures: const [FontFeature.tabularFigures()])),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (it.dueTime > 0) ...[
+            const SizedBox(width: S.sm),
+            Text(
+              overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
+              style: TextStyle(
+                  fontSize: S.textSm,
+                  fontWeight: FontWeight.bold,
+                  color: overdue ? c.accent : (it.done ? c.done : c.inkSoft),
+                  fontFeatures: const [FontFeature.tabularFigures()]),
+            ),
+          ],
+          const SizedBox(width: S.xs),
+          // 选择态的勾选圆圈放到最尾部
+          if (_selecting)
+            Icon(sel ? Icons.check_circle : Icons.circle_outlined,
+                color: sel ? c.accent : c.inkSoft, size: 22)
+          else
+            Icon(Icons.more_horiz, size: 16, color: c.inkSoft),
+        ],
+      ),
     );
-    // 始终包 DraggableLine：非选择态长按整行直接拖到底部红桶单条删除；
-    // 选择态 enabled=sel 仅已选条目可整组拖桶。选择态入口统一走长按「日程」小标题，
-    // DraggableLine 的 LongPressDraggable 会消费条目长按，两套手势互斥。
-    return DraggableLine(
-      id: it.id,
-      title: it.title,
-      enabled: !_selecting || sel,
-      dragIds: _selecting && sel && _selected.length > 1
-          ? _selected.toList()
-          : null,
-      selected: sel,
-      onDragStarted: () => setState(() {
-        _selecting = false;
-        _selected.clear();
-      }),
-      child: line,
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: S.xs),
+      child: Row(
+        children: [
+          head(),
+          Expanded(child: tail),
+        ],
+      ),
+    );
+  }
+
+  /// 整行完整渲染（供拖拽 feedback 用，样式与非选择态一致）。
+  Widget _itemRowFull(Item it) {
+    final s = StartStore.I;
+    final c = ThemeTokens.of(context);
+    final overdue = !it.done && it.dueTime > 0 && it.dueTime < _nowMs;
+    final progress = s.subtaskProgress(it.id);
+    final hasSub = progress[1] > 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: S.xs),
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: S.sm),
+            child: CheckDot(
+              done: it.done,
+              onTap: () async {
+                it.done = !it.done;
+                await StartStore.I.put(it);
+                setState(() {});
+              },
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  it.title.isEmpty ? it.note.split('\n').first : it.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: S.textMd,
+                    color: it.done ? c.done : c.ink,
+                    decoration: it.done ? TextDecoration.lineThrough : null,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (hasSub)
+                  Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
+                      style: TextStyle(fontSize: 11, color: c.inkSoft)),
+              ],
+            ),
+          ),
+          if (it.dueTime > 0) ...[
+            const SizedBox(width: S.sm),
+            Text(
+              overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
+              style: TextStyle(
+                  fontSize: S.textSm,
+                  fontWeight: FontWeight.bold,
+                  color: overdue ? c.accent : c.inkSoft),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -498,6 +682,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     if (!mounted) return;
     UndoHost.show(context, tr('完成了'), () async => s.restoreJson(snap));
+  }
+
+  static String _hm(int ms) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ms);
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  static String _mmdd(int ms) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ms);
+    return '${d.month}/${d.day}';
   }
 }
 
