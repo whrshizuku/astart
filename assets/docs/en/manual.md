@@ -1,4 +1,4 @@
-> This is the copy bundled in the app. If this manual, the Terms of Service, Privacy Policy or open-source license differ in any way from the actual files in the project repository (https://gitee.com/dubwhr/astart), the repository files prevail.
+﻿> This is the copy bundled in the app. If this manual, the Terms of Service, Privacy Policy or open-source license differ in any way from the actual files in the project repository (https://gitee.com/dubwhr/astart), the repository files prevail.
 
 Start (Chinese name 启序) is a local note-and-task tool: break to-dos into small steps so you can nail just one thing at a time. Designed for neurodivergent minds — encouraging words, low friction, no scolding. Everything stays on your device by default; apart from update checks, online speech recognition, the AI assistant and cloud backup are all opt-in features that stay off and only connect when you actively use them.
 

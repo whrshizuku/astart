@@ -455,7 +455,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (ctx.mounted) await showScheduleBatch(ctx);
   }
 
-  /// 选择态顶栏：关闭 + 计数 + 全选 + 完成 + 删除（老版 buildAnytimeSelectBar）。
+  /// 选择态顶栏：关闭 + 计数 + 全选 + 完成。删除统一走底部红色拖桶，
+  /// 顶栏不再放删除按钮，避免两处删除入口冲突。
   Widget _selectBar(C c, List<Item> list) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(S.md, S.sm, S.md, S.sm),
@@ -487,7 +488,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             });
           }),
           IconBtn(Icons.check_circle_outline, tip: tr('完成'), onTap: _batchComplete),
-          IconBtn(Icons.delete_outline, tip: tr('删除'), onTap: _batchDelete),
         ],
       ),
     );
@@ -503,19 +503,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     if (!mounted) return;
     UndoHost.show(context, tr('完成了'), () async => s.restoreJson(snap));
-  }
-
-  /// 批量删除：选中后点顶栏垃圾桶，整组移除（6 秒可撤销）。
-  Future<void> _batchDelete() async {
-    if (_selected.isEmpty) return;
-    final s = StartStore.I;
-    final snap = await s.deleteAll(_selected.toList());
-    setState(() {
-      _selecting = false;
-      _selected.clear();
-    });
-    if (!mounted) return;
-    UndoHost.show(context, tr('已删除'), () async => s.restoreJson(snap));
   }
 }
 

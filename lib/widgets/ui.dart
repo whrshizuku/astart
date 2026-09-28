@@ -199,7 +199,6 @@ class DraggableLine extends StatelessWidget {
       data: id,
       maxSimultaneousDrags: enabled ? 1 : 0,
       delay: const Duration(milliseconds: 120),
-      // 浮影升到根 Overlay：高于底部红区与输入条，拖到桶上时标签仍在最上层。
       rootOverlay: true,
       onDragStarted: () {
         DragDockBus.active.value = true;
@@ -217,9 +216,7 @@ class DraggableLine extends StatelessWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // 浮影就是整个标签本身，不再另做小字卡。
               child,
-              // 多选整批：右上角叠一个番茄红数量标，一眼看出拖的是一组。
               if (batch > 1)
                 Positioned(
                   top: -8,
@@ -242,8 +239,6 @@ class DraggableLine extends StatelessWidget {
           ),
         ),
       ),
-      // 整组拖拽时，所有选中条目原位一起变半透明（拖拽进行中才降透明度，
-      // 平时选择态保持高亮）。
       child: ValueListenableBuilder<bool>(
         valueListenable: DragDockBus.active,
         builder: (_, dragging, c2) => Opacity(
@@ -252,7 +247,6 @@ class DraggableLine extends StatelessWidget {
         ),
         child: child,
       ),
-      // 被拖起的那一条：原位恒半透明。
       childWhenDragging: Opacity(opacity: 0.45, child: child),
     );
   }
