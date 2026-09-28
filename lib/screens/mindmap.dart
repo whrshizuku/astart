@@ -221,63 +221,78 @@ class _MindMapScreenState extends State<MindMapScreen> {
   Widget _node(Item n, Offset pos, C c) {
     final isRoot = n.id == widget.rootId;
     final sel = _selecting ? _selected.contains(n.id) : _sel == n.id;
+    final dragIds = _selecting && sel && _selected.length > 1 ? _selected.toList() : null;
+
+    // 节点内部：GestureDetector(pan自由摆放 / longpress弹菜单 / tap选中 / doubleTap编辑)
+    // 外面包 DraggableLine（长按 120ms 起拖 → 底部红桶删除）—— 和 pan 不冲突，
+    // 120ms 是起拖阈值，pan 在按下瞬间就响应。
+    final inner = GestureDetector(
+      // 按住拖动：连同子树一起移动。
+      onPanUpdate: (d) {
+        setState(() {
+          final ids = [n.id];
+          _descIds(n.id, ids);
+          for (final id in ids) {
+            _delta[id] = (_delta[id] ?? Offset.zero) + d.delta;
+          }
+        });
+      },
+      onLongPress: () => _nodeMenu(n),
+      child: Pressable(
+        onTap: () {
+          if (_selecting) {
+            setState(() {
+              if (_selected.contains(n.id)) {
+                _selected.remove(n.id);
+              } else {
+                _selected.add(n.id);
+              }
+            });
+          } else {
+            setState(() => _sel = n.id);
+          }
+        },
+        onDoubleTap: () => _editNode(n),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: S.sm, vertical: S.xxs),
+          decoration: BoxDecoration(
+            color: isRoot || sel ? c.accentSoft : c.card,
+            borderRadius: BorderRadius.circular(S.radius),
+            border: Border.all(
+              color: isRoot || sel ? c.accent : c.line,
+              width: isRoot || sel ? 1.5 : 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              n.title.trim().isEmpty ? tr('（空）') : n.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: S.textSm,
+                fontWeight: isRoot ? FontWeight.bold : FontWeight.normal,
+                color: c.ink,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
     return Positioned(
       left: pos.dx,
       top: pos.dy,
       width: _nodeW,
       height: _nodeH,
-      child: GestureDetector(
-        // 按住拖动：连同子树一起移动。
-        onPanUpdate: (d) {
-          setState(() {
-            final ids = [n.id];
-            _descIds(n.id, ids);
-            for (final id in ids) {
-              _delta[id] = (_delta[id] ?? Offset.zero) + d.delta;
-            }
-          });
-        },
-        onLongPress: () => _nodeMenu(n),
-        child: Pressable(
-          onTap: () {
-            if (_selecting) {
-              setState(() {
-                if (_selected.contains(n.id)) {
-                  _selected.remove(n.id);
-                } else {
-                  _selected.add(n.id);
-                }
-              });
-            } else {
-              setState(() => _sel = n.id);
-            }
-          },
-          onDoubleTap: () => _editNode(n),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: S.sm, vertical: S.xxs),
-            decoration: BoxDecoration(
-              color: isRoot || sel ? c.accentSoft : c.card,
-              borderRadius: BorderRadius.circular(S.radius),
-              border: Border.all(
-                color: isRoot || sel ? c.accent : c.line,
-                width: isRoot || sel ? 1.5 : 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                n.title.trim().isEmpty ? tr('（空）') : n.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: S.textSm,
-                  fontWeight: isRoot ? FontWeight.bold : FontWeight.normal,
-                  color: c.ink,
-                  height: 1.25,
-                ),
-              ),
-            ),
-          ),
-        ),
+      child: DraggableLine(
+        id: n.id,
+        title: n.title,
+        enabled: !isRoot, // 根节点禁拖（根不可删）
+        dragIds: dragIds,
+        selected: sel,
+        child: inner,
       ),
     );
   }
