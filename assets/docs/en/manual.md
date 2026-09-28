@@ -42,11 +42,11 @@ Everything without a time lives here. The top-right plus lets you write several 
 # Mind Map
 
 - **Top bar**: Bulk import (pick Schedule / Anytime / Steps to copy under the map root) + Re-layout.
-- **Bottom toolbar**: When root is selected = Add child (accent main) + Bulk; when non-root selected = Add child + Edit + Delete (cascade, accent red) + Bulk; when nothing selected = Bulk only.
-- **Node interactions**:
-  - **Tap** = select; **double-tap** = edit text; **long-press** = context menu (Edit / Add child / Prune branch).
-  - **Press & drag** = free placement of the whole subtree; **pinch to zoom**; Re-layout button restores auto layout.
-  - **Long-press 120ms → drag into bottom red trash**: delete this node (cascade), 5-second undo. **Root is locked** (cannot be deleted, cannot be dragged). This matches the home sections' delete flow exactly.
+- **Bottom toolbar**: When root is selected = Add child (accent main) + Bulk; when non-root selected = Add child + Edit + Bulk; when nothing selected = Bulk only. **Deletion always goes through the bottom red trash** (long-press node 120ms to start dragging); there is no delete button in the toolbar.
+- **Node interactions (fully decoupled, zero conflict)**:
+  - **Tap** = select; **double-tap** = edit text.
+  - **Press & drag (Listener raw pointer)** = free placement of the whole subtree; **pinch to zoom**; Re-layout button restores auto layout.
+  - **Long-press 120ms → drag into bottom red trash**: delete this node (cascade), 5-second undo. **Root is locked** (cannot be dragged, cannot be deleted). Matches home / search / steps exactly.
 - **Import nodes**: copy Schedule / Anytime / Steps into the map (top bar imports under root; toolbar button imports under the selected node). Original items stay in place.
 
 # Haptic & Visual Feedback

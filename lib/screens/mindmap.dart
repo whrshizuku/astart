@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../data/item.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
@@ -223,76 +224,90 @@ class _MindMapScreenState extends State<MindMapScreen> {
     final sel = _selecting ? _selected.contains(n.id) : _sel == n.id;
     final dragIds = _selecting && sel && _selected.length > 1 ? _selected.toList() : null;
 
-    // 节点内部：GestureDetector(pan自由摆放 / longpress弹菜单 / tap选中 / doubleTap编辑)
-    // 外面包 DraggableLine（长按 120ms 起拖 → 底部红桶删除）—— 和 pan 不冲突，
-    // 120ms 是起拖阈值，pan 在按下瞬间就响应。
-    final inner = GestureDetector(
-      // 按住拖动：连同子树一起移动。
-      onPanUpdate: (d) {
-        setState(() {
-          final ids = [n.id];
-          _descIds(n.id, ids);
-          for (final id in ids) {
-            _delta[id] = (_delta[id] ?? Offset.zero) + d.delta;
-          }
-        });
-      },
-      onLongPress: () => _nodeMenu(n),
-      child: Pressable(
-        onTap: () {
-          if (_selecting) {
-            setState(() {
-              if (_selected.contains(n.id)) {
-                _selected.remove(n.id);
-              } else {
-                _selected.add(n.id);
-              }
-            });
-          } else {
-            setState(() => _sel = n.id);
-          }
-        },
-        onDoubleTap: () => _editNode(n),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: S.sm, vertical: S.xxs),
-          decoration: BoxDecoration(
-            color: isRoot || sel ? c.accentSoft : c.card,
-            borderRadius: BorderRadius.circular(S.radius),
-            border: Border.all(
-              color: isRoot || sel ? c.accent : c.line,
-              width: isRoot || sel ? 1.5 : 1,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              n.title.trim().isEmpty ? tr('（空）') : n.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: S.textSm,
-                fontWeight: isRoot ? FontWeight.bold : FontWeight.normal,
-                color: c.ink,
-                height: 1.25,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    // ===== 三层完全解耦的交互 =====
+    // 1. Listener(raw pointer) —— 自由摆放。不进手势竞技场，和 DraggableLine 零冲突。
+    //    移动 >120ms 阈值前 = 自由摆放意图；DragDockBus.active=true 时（长按起拖后）停止摆放。
+    // 2. DraggableLine(LongPressDraggable 120ms) —— 长按起拖 → 底部红桶删。
+    //    只有按住超过 120ms 且没被用户摆过时才会触发。
+    // 3. GestureDetector(tap/doubleTap) —— 选中 / 编辑。
+    //    tap 不会和任何 recognizer 冲突。
+    // ================================
 
     return Positioned(
+      // 位置 = 自动布局 + 用户拖动偏移（由 Listener 写入 _delta）
       left: pos.dx,
       top: pos.dy,
       width: _nodeW,
       height: _nodeH,
-      child: DraggableLine(
-        id: n.id,
-        title: n.title,
-        enabled: !isRoot, // 根节点禁拖（根不可删）
-        dragIds: dragIds,
-        selected: sel,
-        child: inner,
+      child: Listener(
+        // 手指移动：连带子树一起摆位置。只在长按没起拖时有效。
+        onPointerMove: (event) {
+          // 长按起拖后 DragDockBus.active=true，此时不要再摆位置——让红桶拖拽接管。
+          if (DragDockBus.active.value) return;
+          setState(() {
+            final ids = [n.id];
+            _descIds(n.id, ids);
+            for (final id in ids) {
+              _delta[id] = (_delta[id] ?? Offset.zero) + Offset(event.delta.dx, event.delta.dy);
+            }
+          });
+        },
+        child: DraggableLine(
+          id: n.id,
+          title: n.title,
+          enabled: !isRoot, // 根禁拖（根不可删）
+          dragIds: dragIds,
+          selected: sel,
+          // 拖拽完全结束（落桶/放回/取消）后清选择态
+          onDragEnd: () {
+            if (_selecting) setState(() {
+              _selecting = false;
+              _selected.clear();
+            });
+          },
+          // 节点本体：tap 选中 / doubleTap 编辑
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              if (_selecting) {
+                setState(() {
+                  _selected.contains(n.id)
+                      ? _selected.remove(n.id)
+                      : _selected.add(n.id);
+                });
+              } else {
+                setState(() => _sel = n.id);
+              }
+            },
+            onDoubleTap: () => _editNode(n),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: S.sm, vertical: S.xxs),
+              decoration: BoxDecoration(
+                color: isRoot || sel ? c.accentSoft : c.card,
+                borderRadius: BorderRadius.circular(S.radius),
+                border: Border.all(
+                  color: isRoot || sel ? c.accent : c.line,
+                  width: isRoot || sel ? 1.5 : 1,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  n.title.trim().isEmpty ? tr('（空）') : n.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: S.textSm,
+                    fontWeight: isRoot ? FontWeight.bold : FontWeight.normal,
+                    color: c.ink,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

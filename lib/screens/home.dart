@@ -610,47 +610,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
 
-    final head = LongPressDraggable<int>(
-      data: it.id,
-      maxSimultaneousDrags: 1,
-      delay: const Duration(milliseconds: 120),
-      rootOverlay: true,
-      onDragStarted: () {
-        DragDockBus.active.value = true;
-        DragDockBus.pendingIds = null;
-        DragDockBus.lastActiveAt = DateTime.now().millisecondsSinceEpoch;
-        HapticFeedback.mediumImpact();
-      },
-      onDragEnd: (_) {
-        DragDockBus.active.value = false;
-        DragDockBus.pendingIds = null;
-      },
-      feedback: Transform.scale(
-        scale: 1.02,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(S.radius),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: SizedBox(
-              width: MediaQuery.sizeOf(context).width - S.md * 2,
-              child: _itemRowFull(it),
-            ),
-          ),
-        ),
-      ),
-      childWhenDragging: Opacity(opacity: 0.45, child: headContent),
-      child: headContent,
-    );
-
     final tail = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onLongPress: () {
@@ -664,9 +623,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: _itemTailBody(it, c, overdue, hasSub, progress, selecting: false),
     );
 
+    // DraggableLine 只包头部 44x44 区域 —— 尾部 GestureDetector 是 sibling，
+    // 手势竞技场不会被 LongPressDraggable(120ms) 吞掉尾部 long press(500ms)。
+    // 这样头部长按起拖、尾部长按进多选两个手势互不干扰。
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.xs),
-      child: Row(children: [head, Expanded(child: tail)]),
+      child: Row(
+        children: [
+          DraggableLine(id: it.id, title: it.title, child: headContent),
+          Expanded(child: tail),
+        ],
+      ),
     );
   }
 
@@ -709,24 +676,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: _itemTailBody(it, c, overdue, hasSub, progress, selecting: true, sel: sel),
     );
 
-    final row = Padding(
+    // DraggableLine 只包头部拖柄区域——尾部 GestureDetector（切换选中）是 sibling，
+    // 120ms 长按起拖不会吞掉尾部的 tap/long press 切换。
+    return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.xs),
-      child: Row(children: [headContent, Expanded(child: tail)]),
-    );
-
-    return DraggableLine(
-      id: it.id,
-      title: it.title,
-      enabled: sel,
-      dragIds: sel && _selected.length > 1 ? _selected.toList() : null,
-      selected: sel,
-      // 拖拽完全结束后才退出选择态——onDragEnd 时 widget 树完整，
-      // 不会导致 DragDockBus 卡死 / pendingIds 残留。
-      onDragEnd: () => setState(() {
-        _selecting = false;
-        _selected.clear();
-      }),
-      child: row,
+      child: Row(
+        children: [
+          DraggableLine(
+            id: it.id,
+            title: it.title,
+            enabled: sel, // 只有已选中的才能起拖
+            dragIds: sel && _selected.length > 1 ? _selected.toList() : null,
+            selected: sel,
+            onDragEnd: () => setState(() {
+              _selecting = false;
+              _selected.clear();
+            }),
+            child: headContent,
+          ),
+          Expanded(child: tail),
+        ],
+      ),
     );
   }
 
@@ -786,74 +756,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 color: sel ? c.accent : c.inkSoft, size: 22)
             : Icon(Icons.more_horiz, size: 16, color: c.inkSoft),
       ],
-    );
-  }
-
-  /// 非选择态整行渲染（只供 LongPressDraggable 的 feedback 用，不复用 _itemRowNormal
-  /// 以避免 feedback 里再次嵌套 LongPressDraggable 造成潜在的递归/手势冲突）。
-  Widget _itemRowFull(Item it) {
-    final s = StartStore.I;
-    final c = ThemeTokens.of(context);
-    final overdue = !it.done && it.dueTime > 0 && it.dueTime < _nowMs;
-    final progress = s.subtaskProgress(it.id);
-    final hasSub = progress[1] > 0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: S.xs),
-      child: Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: S.sm),
-            child: CheckDot(
-              done: it.done,
-              onTap: () async {
-                it.done = !it.done;
-                await s.put(it);
-                setState(() {});
-              },
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  it.title.isEmpty ? it.note.split('\n').first : it.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: S.textMd,
-                    color: it.done ? c.done : c.ink,
-                    decoration: it.done ? TextDecoration.lineThrough : null,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (hasSub)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      children: [
-                        Icon(Icons.hexagon_outlined, size: 12, color: c.inkSoft),
-                        const SizedBox(width: S.xxs),
-                        Text(tr('小步骤 {0}/{1}', [progress[0], progress[1]]),
-                            style: TextStyle(fontSize: 11, color: c.inkSoft)),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (it.dueTime > 0) ...[
-            const SizedBox(width: S.sm),
-            Text(
-              overdue ? _mmdd(it.dueTime) : _hm(it.dueTime),
-              style: TextStyle(
-                  fontSize: S.textSm,
-                  fontWeight: FontWeight.bold,
-                  color: overdue ? c.accent : c.inkSoft),
-            ),
-          ],
-        ],
-      ),
     );
   }
 

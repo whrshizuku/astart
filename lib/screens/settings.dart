@@ -336,11 +336,7 @@ class _LangTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(tr('界面语言'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: S.textMd, color: c.ink)),
-          const SizedBox(height: S.xs),
+          // 分组标题已由外层 _Group(label: 界面语言) 承担，此处不再重复。
           Wrap(
             spacing: S.xs,
             runSpacing: S.xs,

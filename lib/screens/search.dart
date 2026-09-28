@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/item.dart';
 import '../data/store.dart';
@@ -318,7 +319,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ],
             ),
-            // 批量态吸底操作胶囊：全选 + 已选计数 + 删除。
+            // 批量态吸底工具栏：全选 + 已选计数 + 完成 + 退出。删除统一长按拖红桶。
             if (_selecting && _hits.isNotEmpty)
               Positioned(
                 left: 0,
@@ -353,10 +354,60 @@ class _SearchScreenState extends State<SearchScreen> {
                                 : _selected.addAll(shown.map((e) => e.id));
                           }),
                         ),
+                        const SizedBox(width: 4),
                         Text(tr('已选 {0}', [_selected.length]),
                             style: const TextStyle(
                                 fontSize: S.textSm, color: Colors.white70)),
-                        // 删除统一走拖拽：长按任一已选条目，整组拖到底部桶。
+                        const SizedBox(width: 4),
+                        // 完成：红色实心主按钮
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: c.accent,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: _selected.isEmpty
+                              ? null
+                              : () async {
+                                  HapticFeedback.selectionClick();
+                                  final snap = StartStore.I.exportJson();
+                                  for (final id in _selected) {
+                                    final it = StartStore.I.items
+                                        .firstWhere((e) => e.id == id, orElse: () => Item());
+                                    if (it.id > 0) {
+                                      it.done = true;
+                                      await StartStore.I.put(it);
+                                    }
+                                  }
+                                  final n = _selected.length;
+                                  setState(() {
+                                    _selecting = false;
+                                    _selected.clear();
+                                  });
+                                  UndoHost.show(
+                                      context,
+                                      tr('已完成 {0} 件', [n]),
+                                      () async => StartStore.I.restoreJson(snap));
+                                },
+                          child: Text(tr('完成'),
+                              style: const TextStyle(fontSize: S.textSm)),
+                        ),
+                        const SizedBox(width: 4),
+                        IconBtn(
+                          Icons.close,
+                          tip: tr('退出'),
+                          color: Colors.white70,
+                          onTap: () => setState(() {
+                            _selecting = false;
+                            _selected.clear();
+                          }),
+                        ),
                       ],
                     ),
                   ),

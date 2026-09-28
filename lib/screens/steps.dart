@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/item.dart';
 import '../data/store.dart';
@@ -166,6 +167,67 @@ class _StepsScreenState extends State<StepsScreen> {
                   IconBtn(Icons.arrow_back, onTap: () => Navigator.pop(context)),
                   const Spacer(),
                   if (_selecting) ...[
+                    // 全选：灰色 outline 次级
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: c.inkSoft,
+                        side: BorderSide(color: c.inkSoft.withValues(alpha: 0.3), width: 1),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          _selected.length == steps.length
+                              ? _selected.clear()
+                              : _selected.addAll(steps.map((e) => e.id));
+                        });
+                      },
+                      child: Icon(
+                          _selected.length == steps.length && steps.isNotEmpty
+                              ? Icons.deselect
+                              : Icons.select_all,
+                          size: 16),
+                    ),
+                    const SizedBox(width: 6),
+                    // 完成：红色实心主
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: c.accent,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: _selected.isEmpty
+                          ? null
+                          : () async {
+                              HapticFeedback.selectionClick();
+                              final snap = StartStore.I.exportJson();
+                              for (final id in _selected) {
+                                final it = StartStore.I.items
+                                    .firstWhere((e) => e.id == id, orElse: () => Item());
+                                if (it.id > 0) {
+                                  it.done = true;
+                                  await StartStore.I.put(it);
+                                }
+                              }
+                              final n = _selected.length;
+                              setState(() {
+                                _selecting = false;
+                                _selected.clear();
+                              });
+                              if (!context.mounted) return;
+                              UndoHost.show(context, tr('已完成 {0} 步', [n]),
+                                  () async => StartStore.I.restoreJson(snap));
+                            },
+                      child: Text(tr('完成'), style: const TextStyle(fontSize: 13)),
+                    ),
+                    const SizedBox(width: 6),
                     IconBtn(Icons.close, tip: tr('退出选择'), onTap: () {
                       setState(() {
                         _selecting = false;
