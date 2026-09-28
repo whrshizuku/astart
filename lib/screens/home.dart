@@ -350,7 +350,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ReorderableListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    buildDefaultDragHandles: true,
+                    // 关默认拖柄，拖拽统一走 DraggableLine，避免两套拖拽源冲突导致手势错乱与布局异常
+                    buildDefaultDragHandles: false,
                     proxyDecorator: (child, i, a) => ScaleTransition(scale: a, child: child),
                     itemCount: anytime.length,
                     onReorder: (o, n) async {
@@ -411,23 +412,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       selecting: _selecting,
       selected: _selected,
       onChange: () => setState(() {}),
-      // 长按进选择态（已在选择态则切换本条选中）；拖桶删除改在选择态内进行，
-      // 故非选择态不再包 DraggableLine，避免其长按手势抢先消费。
-      onLongPress: () => setState(() {
-        if (_selecting) {
-          _selected.contains(it.id) ? _selected.remove(it.id) : _selected.add(it.id);
-        } else {
-          _selecting = true;
-          _selected.add(it.id);
-        }
-      }),
     );
-    if (!_selecting) return line;
+    // 始终包 DraggableLine：非选择态长按整行直接拖到底部红桶单条删除；
+    // 选择态 enabled=sel 仅已选条目可整组拖桶。选择态入口统一走长按「日程」小标题，
+    // DraggableLine 的 LongPressDraggable 会消费条目长按，两套手势互斥。
     return DraggableLine(
       id: it.id,
       title: it.title,
-      enabled: sel,
-      dragIds: sel && _selected.length > 1 ? _selected.toList() : null,
+      enabled: !_selecting || sel,
+      dragIds: _selecting && sel && _selected.length > 1
+          ? _selected.toList()
+          : null,
       selected: sel,
       onDragStarted: () => setState(() {
         _selecting = false;
@@ -973,14 +968,12 @@ class _TaskLine extends StatelessWidget {
   final bool selecting;
   final Set<int> selected;
   final VoidCallback onChange;
-  final VoidCallback? onLongPress;
   const _TaskLine({
     required this.it,
     required this.nowMs,
     required this.selecting,
     required this.selected,
     required this.onChange,
-    this.onLongPress,
   });
 
   @override
@@ -995,7 +988,6 @@ class _TaskLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.xs),
       child: Pressable(
-        onLongPress: onLongPress,
         onTap: selecting
             ? () { selected.contains(it.id) ? selected.remove(it.id) : selected.add(it.id); onChange(); }
             : () => showItemEditor(context, it, onDeleted: onChange),
