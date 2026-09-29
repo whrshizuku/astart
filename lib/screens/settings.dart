@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../channels/native.dart';
@@ -344,7 +344,11 @@ class _LangTile extends StatelessWidget {
             spacing: S.xs,
             runSpacing: S.xs,
             children: [
-              for (final o in Lang.options)
+              // 跟随系统永远在第一位，作为"返回默认"入口。
+              for (final o in [
+                (Lang.system, tr('跟随系统')),
+                ...Lang.options,
+              ])
                 Pressable(
                   onTap: () => Lang.choose(o.$1),
                   child: AnimatedContainer(
