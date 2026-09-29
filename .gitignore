@@ -54,6 +54,7 @@ keystore.properties
 
 # 构建产物
 Start-*-signed.apk
+Start-Web-*.zip
 
 *.apk
 android/build/

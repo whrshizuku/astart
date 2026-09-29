@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -141,13 +142,14 @@ class _StartAppState extends State<StartApp> {
                 child: ValueListenableBuilder<bool>(
                   valueListenable: DragDockBus.active,
                   child: child,
-                  builder: (_, dragging, nav) {
-                    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+                  builder: (innerCtx, dragging, nav) {
+                    final mq = MediaQuery.of(innerCtx);
+                    final bottomInset = mq.viewPadding.bottom;
                     // 红区高 72 + 手势条安全区，再留 24dp 间隙；页面（含底栏、
                     // 捋一捋输入条）整体上移这个距离，红区永不遮住输入条。
                     final lift = 72 + S.lg + bottomInset;
                     // 纸色铺底：界面上移后露出的区域不是黑边。
-                    return ColoredBox(
+                    Widget shell = ColoredBox(
                       color: c.paper,
                       child: Stack(
                         children: [
@@ -163,6 +165,38 @@ class _StartAppState extends State<StartApp> {
                         ],
                       ),
                     );
+                    // Web 宽屏：应用按手机宽度（480）居中，两侧衬底加深，
+                    // 子树 MediaQuery 尺寸同步收窄，弹层/Sheet/列表宽度计算与手机一致。
+                    // 窄屏（手机浏览器）与 Android 不走这里，行为完全不变。
+                    if (kIsWeb && mq.size.width > 520) {
+                      final backdrop = isDark
+                          ? Color.lerp(c.paper, Colors.black, 0.4)!
+                          : Color.lerp(c.paper, c.ink, 0.06)!;
+                      shell = ColoredBox(
+                        color: backdrop,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 480),
+                            child: MediaQuery(
+                              data: mq.copyWith(
+                                size: Size(480, mq.size.height),
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: c.paper,
+                                  border: Border(
+                                    left: BorderSide(color: c.line),
+                                    right: BorderSide(color: c.line),
+                                  ),
+                                ),
+                                child: shell,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return shell;
                   },
                 ),
               ),
