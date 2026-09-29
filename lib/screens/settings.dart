@@ -215,6 +215,8 @@ class _DevGateState extends State<_DevGate> {
   DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
 
   void _tap() {
+    // Web 版不暴露开发者模式（纯 Android 调试用途）。
+    if (kIsWeb) return;
     // 版权行五击直接进开发者模式（无开关）。
     final now = DateTime.now();
     _taps = now.difference(_last).inMilliseconds < 1200 ? _taps + 1 : 1;

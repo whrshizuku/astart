@@ -66,3 +66,6 @@ assets/vosk/
 说明书/
 说明书.zip
 说明书.pdf
+
+# Web 构建日志
+web_build_log*.txt

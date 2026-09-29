@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
@@ -21,14 +20,15 @@ class StartStore extends ChangeNotifier {
   String _dir = '';
   String get dir => _dir;
 
-  File get _file => File('$_dir/$fileJson');
+  String get _filePath => '$_dir/$fileJson';
 
   Future<void> init() async {
-    _dir = await Native.filesDir();
+    _dir = await PlatformIO.filesDir();
     prefs = await Prefs.getAll();
     try {
-      if (await _file.exists()) {
-        final root = jsonDecode(await _file.readAsString()) as Map<String, dynamic>;
+      final content = await PlatformIO.readFile(_filePath);
+      if (content != null) {
+        final root = jsonDecode(content) as Map<String, dynamic>;
         seq = _int(root['seq'], 1);
         final arr = root['items'] as List<dynamic>? ?? [];
         items
@@ -122,9 +122,7 @@ class StartStore extends ChangeNotifier {
 
   Future<void> persist() async {
     try {
-      final tmp = File('$_dir/$fileJson.tmp');
-      await tmp.writeAsString(exportJson(), flush: true);
-      await tmp.rename(_file.path);
+      await PlatformIO.writeFile(_filePath, exportJson());
     } catch (_) {}
   }
 
@@ -184,7 +182,7 @@ class StartStore extends ChangeNotifier {
     seq = 1;
     prefs.clear();
     try {
-      if (await _file.exists()) await _file.delete();
+      await PlatformIO.deleteFile(_filePath);
     } catch (_) {}
     notifyListeners();
   }
